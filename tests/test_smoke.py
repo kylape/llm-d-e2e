@@ -59,3 +59,29 @@ def test_llm_client_init():
     c = LLMClient(base_url="http://localhost:8000", bearer_token="test-token")
     assert c._client.headers.get("authorization") == "Bearer test-token"
     c.close()
+
+
+def test_load_slo_testcase():
+    """Test loading a test case with benchmark and SLO configs."""
+    tc = load_testcase("configs/testcases/slo-single-gpu-qwen7b.yaml")
+    assert tc.name == "slo-single-gpu-qwen7b"
+    assert tc.hardware == "h200"
+
+    # Benchmark config
+    assert tc.benchmark is not None
+    assert tc.benchmark.duration == 300
+    assert tc.benchmark.concurrency == 64
+    assert tc.benchmark.input_tokens_min == 128
+    assert tc.benchmark.input_tokens_max == 1024
+    assert tc.benchmark.output_tokens_min == 64
+    assert tc.benchmark.output_tokens_max == 512
+    assert tc.benchmark.profile == "constant"
+
+    # SLO config
+    assert tc.slos is not None
+    assert tc.slos.ttft_p95_ms == 200
+    assert tc.slos.ttft_p99_ms == 500
+    assert tc.slos.throughput_tok_s == 500
+    assert tc.slos.itl_p95_ms == 30
+    assert tc.slos.itl_p99_ms == 50
+    assert tc.slos.error_rate == 0.01

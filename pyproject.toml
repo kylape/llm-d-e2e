@@ -16,6 +16,7 @@ dependencies = [
 llm-d-e2e = "conformance.cli:main"
 
 [project.optional-dependencies]
+benchmark = ["guidellm"]
 dev = ["ruff>=0.8"]
 
 [build-system]

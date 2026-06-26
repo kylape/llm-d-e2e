@@ -27,7 +27,10 @@ def main():
     parser.add_argument("--kubeconfig", default="", help="Path to kubeconfig")
 
     # Mode
-    parser.add_argument("--mode", default="deploy", choices=["deploy", "discover", "cache"], help="Run mode")
+    parser.add_argument(
+        "--mode", default="deploy", choices=["deploy", "discover", "cache", "benchmark"],
+        help="Run mode (benchmark = deploy + run GuideLLM + validate SLOs)",
+    )
     parser.add_argument("--model-source", default="hf", choices=["hf", "pvc"], help="Model source")
     parser.add_argument("--model", default="", help="Override model name")
     parser.add_argument("--endpoint", default="", help="Service URL for discover mode")

@@ -10,7 +10,8 @@ Each test case runs through ordered phases:
   07. Health — GET /health returns 200
   08. Models — GET /v1/models lists the model
   09. Inference — POST /v1/chat/completions returns tokens
-  10. Metrics — scrape and validate Prometheus metrics
+  10-13. Metrics — scrape and validate Prometheus metrics
+  14. Benchmark — run GuideLLM and validate SLOs (optional)
   99. Cleanup — delete LLMInferenceService
 """
 
@@ -30,7 +31,8 @@ from conformance.metrics import (
     validate_scheduler,
     validate_vllm_basic,
 )
-from conformance.report import Report, TestResult
+from conformance.benchmark import run_benchmark, GUIDELLM_AVAILABLE
+from conformance.slo import validate_slos
 
 LLMISVC_CRD = "llminferenceservices.serving.kserve.io"
 
@@ -194,6 +196,47 @@ class TestConformance:
             _log(f"  {c.name}: {'PASS' if c.passed else 'FAIL'} — {c.message}")
         failed = [c for c in checks if not c.passed]
         assert not failed, f"Scheduler metric checks failed: {[c.message for c in failed]}"
+
+    def test_14_benchmark(self, tc: TestCase, endpoint: str, test_mode: str):
+        """Run GuideLLM benchmark and validate SLOs."""
+        if tc.benchmark is None:
+            pytest.skip("No benchmark config")
+        if test_mode == "discover":
+            pytest.skip("Benchmark skipped in discover mode")
+        if not GUIDELLM_AVAILABLE:
+            pytest.skip("GuideLLM not installed")
+
+        _log(f"Running benchmark: {tc.benchmark.duration}s, concurrency={tc.benchmark.concurrency}")
+        _log(f"Endpoint: {endpoint}")
+        _log(f"Model: {tc.model.name}")
+
+        result = run_benchmark(
+            endpoint=endpoint,
+            config=tc.benchmark,
+            model=tc.model.name,
+        )
+
+        if not result.success:
+            _log(f"Benchmark FAILED: {result.error}")
+            pytest.fail(f"Benchmark failed: {result.error}")
+
+        _log(f"Benchmark completed: {result.requests_successful} successful, {result.requests_errored} errored")
+        _log(f"  TTFT p95: {result.ttft_p95_ms:.2f}ms" if result.ttft_p95_ms else "  TTFT p95: N/A")
+        _log(f"  TTFT p99: {result.ttft_p99_ms:.2f}ms" if result.ttft_p99_ms else "  TTFT p99: N/A")
+        _log(f"  ITL p95: {result.itl_p95_ms:.2f}ms" if result.itl_p95_ms else "  ITL p95: N/A")
+        _log(f"  ITL p99: {result.itl_p99_ms:.2f}ms" if result.itl_p99_ms else "  ITL p99: N/A")
+        _log(f"  Throughput: {result.throughput_tok_s:.2f} tok/s" if result.throughput_tok_s else "  Throughput: N/A")
+        _log(f"  Error rate: {result.error_rate:.4f}" if result.error_rate is not None else "  Error rate: N/A")
+
+        if tc.slos:
+            _log("Validating SLOs...")
+            slo_report = validate_slos(result, tc.slos)
+            for check in slo_report.results:
+                _log(f"  {check}")
+            assert slo_report.passed, f"SLO validation failed:\n{slo_report.summary}"
+            _log("All SLOs PASSED")
+        else:
+            _log("No SLOs defined — benchmark results recorded only")
 
     def test_99_cleanup(self, deployer: Deployer, tc: TestCase, no_cleanup: bool):
         """Clean up deployed resources."""

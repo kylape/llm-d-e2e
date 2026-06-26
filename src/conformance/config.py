@@ -78,6 +78,41 @@ class MultiPoolCheck:
 
 
 @dataclass
+class BenchmarkConfig:
+    """Configuration for GuideLLM benchmark runs."""
+
+    duration: int = 300  # seconds
+    concurrency: int = 64
+    input_tokens_min: int = 128
+    input_tokens_max: int = 1024
+    output_tokens_min: int = 64
+    output_tokens_max: int = 512
+    profile: str = "constant"  # constant, sweep, poisson
+    data_source: str | None = None  # HF dataset or JSON path (optional)
+
+
+@dataclass
+class SLOConfig:
+    """SLO thresholds for benchmark validation."""
+
+    ttft_p95_ms: float | None = None
+    ttft_p99_ms: float | None = None
+    throughput_tok_s: float | None = None
+    itl_p95_ms: float | None = None
+    itl_p99_ms: float | None = None
+    error_rate: float | None = None  # 0.0 - 1.0
+
+
+@dataclass
+class AccuracyConfig:
+    """Configuration for lm-eval accuracy checks."""
+
+    task: str = "hellaswag"
+    limit: int = 20
+    min_score: float = 0.7
+
+
+@dataclass
 class ChatPrompt:
     role: str = "user"
     content: str = ""
@@ -132,6 +167,11 @@ class TestCase:
     deployment: DeployConfig = field(default_factory=DeployConfig)
     validation: ValidateConfig = field(default_factory=ValidateConfig)
     cleanup: bool = True
+    # SLO benchmark fields
+    hardware: str | None = None  # h100, h200, a100 — for documentation/filtering
+    benchmark: BenchmarkConfig | None = None
+    slos: SLOConfig | None = None
+    accuracy: AccuracyConfig | None = None
 
 
 @dataclass
@@ -181,6 +221,12 @@ def _build(cls, data: dict | None):
             kwargs[snake_key] = _build(DeployConfig, val) if val else DeployConfig()
         elif "ValidateConfig" in str(hint):
             kwargs[snake_key] = _build(ValidateConfig, val) if val else ValidateConfig()
+        elif "BenchmarkConfig" in str(hint):
+            kwargs[snake_key] = _build(BenchmarkConfig, val) if val else None
+        elif "SLOConfig" in str(hint):
+            kwargs[snake_key] = _build(SLOConfig, val) if val else None
+        elif "AccuracyConfig" in str(hint):
+            kwargs[snake_key] = _build(AccuracyConfig, val) if val else None
         else:
             kwargs[snake_key] = val
     return cls(**kwargs)

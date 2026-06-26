@@ -1,0 +1,60 @@
+name: slo-single-gpu-qwen7b
+description: "Single GPU Qwen2.5-7B-Instruct SLO validation on H200"
+
+hardware: h200
+
+model:
+  name: Qwen/Qwen2.5-7B-Instruct
+  uri: hf://Qwen/Qwen2.5-7B-Instruct
+  displayName: qwen2.5-7b-instruct
+  category: single-node-gpu
+  cache:
+    enabled: true
+    storageSize: 20Gi
+    keepPVC: true
+    timeout: 15m
+
+deployment:
+  manifestPath: single-gpu.yaml
+  replicas: 1
+  readyTimeout: 15m
+  resources:
+    cpu: "4"
+    memory: 32Gi
+    gpus: 1
+
+benchmark:
+  duration: 300
+  concurrency: 64
+  inputTokensMin: 128
+  inputTokensMax: 1024
+  outputTokensMin: 64
+  outputTokensMax: 512
+  profile: constant
+
+slos:
+  ttft_p95_ms: 200
+  ttft_p99_ms: 500
+  throughput_tok_s: 500
+  itl_p95_ms: 30
+  itl_p99_ms: 50
+  error_rate: 0.01
+
+validation:
+  healthEndpoint: /health
+  healthPort: 8000
+  healthScheme: HTTPS
+  inferenceCheck: true
+  testPrompts:
+    - "What is Kubernetes?"
+  expectedCodes: [200]
+  timeout: 2m
+  retryAttempts: 3
+  retryInterval: 15s
+  metricsCheck:
+    enabled: true
+    checkVLLM: true
+    checkEPP: true
+    checkScheduler: true
+
+cleanup: true
