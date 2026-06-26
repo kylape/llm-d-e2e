@@ -155,6 +155,28 @@ class Deployer:
         except RuntimeError as e:
             log.warning("Could not patch gateway allowedRoutes: %s", e)
 
+    def ensure_mock_model_pvc(self):
+        """Create an empty PVC for mock/simulator mode to avoid model downloads."""
+        pvc_manifest = {
+            "apiVersion": "v1",
+            "kind": "PersistentVolumeClaim",
+            "metadata": {
+                "name": "mock-model-pvc",
+                "namespace": self.namespace,
+            },
+            "spec": {
+                "accessModes": ["ReadWriteOnce"],
+                "resources": {"requests": {"storage": "1Gi"}},
+            },
+        }
+        with tempfile.NamedTemporaryFile(mode="w", suffix=".yaml", delete=False) as f:
+            yaml.dump(pvc_manifest, f)
+            tmp_path = f.name
+        try:
+            self.kubectl("apply", "-n", self.namespace, "-f", tmp_path)
+        finally:
+            Path(tmp_path).unlink(missing_ok=True)
+
     def ensure_metrics_rbac(self, name: str):
         """Bind the EPP service account to kserve-metrics-reader-cluster-role for metrics scraping."""
         sa_name = f"{name}-epp-sa"
@@ -213,6 +235,8 @@ class Deployer:
 
         try:
             self.ensure_namespace()
+            if self.mock_image:
+                self.ensure_mock_model_pvc()
             for secret_name in self._collect_pull_secrets(manifest):
                 self.ensure_pull_secret(secret_name)
             self.ensure_gateway_allows_namespace()
@@ -231,19 +255,19 @@ class Deployer:
         if timeout is None:
             timeout = tc.deployment.ready_timeout.total_seconds()
         deadline = time.time() + timeout
-        name = tc.name
+        resource_name = getattr(self, "_resource_name", tc.name)
         start = time.time()
 
         while time.time() < deadline:
             elapsed = int(time.time() - start)
             try:
                 status = self.kubectl(
-                    "get", "llminferenceservice", name, "-n", self.namespace,
+                    "get", "llminferenceservice", resource_name, "-n", self.namespace,
                     "-o", "jsonpath={.status.conditions[?(@.type=='Ready')].status}",
                     check=False,
                 )
                 reason = self.kubectl(
-                    "get", "llminferenceservice", name, "-n", self.namespace,
+                    "get", "llminferenceservice", resource_name, "-n", self.namespace,
                     "-o", "jsonpath={.status.conditions[?(@.type=='Ready')].reason}",
                     check=False,
                 ) or "waiting"
@@ -260,11 +284,13 @@ class Deployer:
 
     def wait_for_service(self, name: str, timeout: float = 300) -> str:
         deadline = time.time() + timeout
+        # Use the actual resource name from the manifest, not the test case name
+        resource_name = getattr(self, "_resource_name", name)
         while time.time() < deadline:
             try:
                 output = self.kubectl(
                     "get", "svc", "-n", self.namespace,
-                    "-l", f"app.kubernetes.io/name={name}",
+                    "-l", f"app.kubernetes.io/name={resource_name}",
                     "-o", "jsonpath={.items[0].metadata.name}",
                     check=False,
                 )
@@ -273,7 +299,7 @@ class Deployer:
             except RuntimeError:
                 pass
             time.sleep(10)
-        raise TimeoutError(f"Service for {name} not found after {timeout}s")
+        raise TimeoutError(f"Service for {resource_name} not found after {timeout}s")
 
     def wait_for_httproute(self, name: str, timeout: float = 300) -> bool:
         deadline = time.time() + timeout
@@ -301,7 +327,8 @@ class Deployer:
         raise TimeoutError(f"Gateway not programmed after {timeout}s")
 
     def wait_for_pods(self, name: str, timeout: float = 600, print_fn=None) -> list[str]:
-        label = WORKLOAD_LABEL.format(name=name)
+        resource_name = getattr(self, "_resource_name", name)
+        label = WORKLOAD_LABEL.format(name=resource_name)
         deadline = time.time() + timeout
         start = time.time()
         while time.time() < deadline:
@@ -400,10 +427,13 @@ class Deployer:
 
     def get_pod_endpoint(self, name: str) -> str:
         """Port-forward directly to a workload pod, bypassing the gateway/EPP."""
+        # Mock/simulator mode uses HTTP, real vLLM uses HTTPS
+        scheme = "http" if self.mock_image else "https"
         if self._pod_pf_proc and self._pod_pf_proc.poll() is None:
-            return f"https://localhost:{self._pod_pf_port}"
+            return f"{scheme}://localhost:{self._pod_pf_port}"
 
-        label = WORKLOAD_LABEL.format(name=name)
+        resource_name = getattr(self, "_resource_name", name)
+        label = WORKLOAD_LABEL.format(name=resource_name)
         output = self.kubectl(
             "get", "pods", "-n", self.namespace, "-l", label,
             "-o", "jsonpath={.items[0].metadata.name}",
@@ -427,7 +457,7 @@ class Deployer:
             self._pod_pf_proc = None
             raise RuntimeError(f"Pod port-forward to {pod_name} failed to start")
 
-        return f"https://localhost:{local_port}"
+        return f"{scheme}://localhost:{local_port}"
 
     def stop_port_forward(self):
         for proc_attr in ("_port_forward_proc", "_pod_pf_proc"):
@@ -447,7 +477,8 @@ class Deployer:
             check=False,
         )
         deadline = time.time() + timeout
-        label = WORKLOAD_LABEL.format(name=tc.name)
+        resource_name = getattr(self, "_resource_name", tc.name)
+        label = WORKLOAD_LABEL.format(name=resource_name)
         while time.time() < deadline:
             output = self.kubectl(
                 "get", "pods", "-n", self.namespace, "-l", label,
@@ -469,12 +500,17 @@ class Deployer:
         with open(path) as f:
             manifest = yaml.safe_load(f)
 
+        # Store the actual resource name from the manifest for later use
+        self._resource_name = manifest.get("metadata", {}).get("name", tc.name)
+
         spec = manifest.get("spec", {})
 
         if self.mock_image:
             model = spec.setdefault("model", {})
             model["name"] = tc.model.name
-            model["uri"] = tc.model.uri
+            # Use pvc:// URI to mount an empty PVC instead of downloading a model
+            # The simulator doesn't actually use the model, it generates fake responses
+            model["uri"] = "pvc://mock-model-pvc/model"
             self._replace_vllm_image(spec, self.mock_image, tc.model.name)
         elif tc.model.uri:
             model = spec.setdefault("model", {})
@@ -502,7 +538,6 @@ class Deployer:
                         "--model", sim_model,
                         "--served-model-name", model_name or sim_model,
                         "--port", "8000",
-                        "--self-signed-certs",
                         "--mode", "random",
                         "--enable-kvcache", "true",
                     ]
