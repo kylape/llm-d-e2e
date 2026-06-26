@@ -1,7 +1,7 @@
 name: all
 description: "All conformance tests — scheduler, no-scheduler, cache-aware, P/D"
 platform: any
-testCases:
+test_cases:
   - single-gpu
   - single-gpu-no-scheduler
   - cache-aware

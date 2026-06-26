@@ -185,50 +185,44 @@ class TestProfile:
     timeout: timedelta = field(default_factory=lambda: timedelta(hours=2))
 
 
-def _snake(key: str) -> str:
-    """Convert camelCase YAML keys to snake_case."""
-    return re.sub(r"([a-z])([A-Z])", r"\1_\2", key).lower()
-
-
 def _build(cls, data: dict | None):
-    """Recursively build a dataclass from a dict, handling camelCase keys."""
+    """Recursively build a dataclass from a dict. Keys must be snake_case."""
     if not data:
         return cls()
     kwargs = {}
     hints = {f.name: f.type for f in cls.__dataclass_fields__.values()}
     for key, val in data.items():
-        snake_key = _snake(key)
-        if snake_key not in hints:
+        if key not in hints:
             continue
-        hint = hints[snake_key]
-        if snake_key in ("timeout", "ready_timeout", "retry_interval") and isinstance(val, str):
-            kwargs[snake_key] = parse_duration(val)
+        hint = hints[key]
+        if key in ("timeout", "ready_timeout", "retry_interval") and isinstance(val, str):
+            kwargs[key] = parse_duration(val)
         elif hint == "CacheConfig" or (isinstance(hint, str) and "CacheConfig" in str(hint)):
-            kwargs[snake_key] = _build(CacheConfig, val) if val else CacheConfig()
+            kwargs[key] = _build(CacheConfig, val) if val else CacheConfig()
         elif "ResourceConfig" in str(hint):
-            kwargs[snake_key] = _build(ResourceConfig, val) if val else ResourceConfig()
+            kwargs[key] = _build(ResourceConfig, val) if val else ResourceConfig()
         elif "ParallelismConfig" in str(hint):
-            kwargs[snake_key] = _build(ParallelismConfig, val) if val else None
+            kwargs[key] = _build(ParallelismConfig, val) if val else None
         elif "PrefillConfig" in str(hint):
-            kwargs[snake_key] = _build(PrefillConfig, val) if val else None
+            kwargs[key] = _build(PrefillConfig, val) if val else None
         elif "MetricsCheck" in str(hint):
-            kwargs[snake_key] = _build(MetricsCheck, val) if val else MetricsCheck()
+            kwargs[key] = _build(MetricsCheck, val) if val else MetricsCheck()
         elif "MultiPoolCheck" in str(hint):
-            kwargs[snake_key] = _build(MultiPoolCheck, val) if val else None
+            kwargs[key] = _build(MultiPoolCheck, val) if val else None
         elif "ModelConfig" in str(hint):
-            kwargs[snake_key] = _build(ModelConfig, val) if val else ModelConfig()
+            kwargs[key] = _build(ModelConfig, val) if val else ModelConfig()
         elif "DeployConfig" in str(hint):
-            kwargs[snake_key] = _build(DeployConfig, val) if val else DeployConfig()
+            kwargs[key] = _build(DeployConfig, val) if val else DeployConfig()
         elif "ValidateConfig" in str(hint):
-            kwargs[snake_key] = _build(ValidateConfig, val) if val else ValidateConfig()
+            kwargs[key] = _build(ValidateConfig, val) if val else ValidateConfig()
         elif "BenchmarkConfig" in str(hint):
-            kwargs[snake_key] = _build(BenchmarkConfig, val) if val else None
+            kwargs[key] = _build(BenchmarkConfig, val) if val else None
         elif "SLOConfig" in str(hint):
-            kwargs[snake_key] = _build(SLOConfig, val) if val else None
+            kwargs[key] = _build(SLOConfig, val) if val else None
         elif "AccuracyConfig" in str(hint):
-            kwargs[snake_key] = _build(AccuracyConfig, val) if val else None
+            kwargs[key] = _build(AccuracyConfig, val) if val else None
         else:
-            kwargs[snake_key] = val
+            kwargs[key] = val
     return cls(**kwargs)
 
 
@@ -246,7 +240,7 @@ def load_profile(path: str | Path) -> TestProfile:
         description=data.get("description", ""),
         platform=data.get("platform", "any"),
         labels=data.get("labels", []),
-        test_cases=data.get("testCases", []),
+        test_cases=data.get("test_cases", []),
         parallel=data.get("parallel", False),
     )
     if "timeout" in data:

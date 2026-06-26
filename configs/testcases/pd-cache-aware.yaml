@@ -3,17 +3,17 @@ description: "P/D disaggregation with cache-aware routing, 2 prefill + 1 decode 
 model:
   name: Qwen/Qwen3-0.6B
   uri: hf://Qwen/Qwen3-0.6B
-  displayName: qwen3-0.6b-pd-cache-aware
+  display_name: qwen3-0.6b-pd-cache-aware
   category: multi-node-gpu
   cache:
     enabled: true
-    storageSize: 10Gi
-    keepPVC: true
+    storage_size: 10Gi
+    keep_pvc: true
     timeout: 15m
 deployment:
-  manifestPath: pd-cache-aware.yaml
+  manifest_path: pd-cache-aware.yaml
   replicas: 1
-  readyTimeout: 15m
+  ready_timeout: 15m
   resources:
     cpu: "4"
     memory: 32Gi
@@ -27,11 +27,11 @@ deployment:
       gpus: 1
       rdma: false
 validation:
-  healthEndpoint: /health
-  healthPort: 8000
-  healthScheme: HTTPS
-  inferenceCheck: true
-  chatPrompts:
+  health_endpoint: /health
+  health_port: 8000
+  health_scheme: HTTPS
+  inference_check: true
+  chat_prompts:
     # Request 1: long system prefix — gets cached by vLLM on prefill pod
     - system: "You are a helpful AI assistant specializing in distributed systems, cloud computing, and Kubernetes. You have deep expertise in GPU workloads, model serving, KV cache optimization, and inference pipeline architectures. Always provide detailed, technical answers with examples."
       user: "What is prefill decode disaggregation with prefix caching?"
@@ -41,16 +41,16 @@ validation:
     # Request 3: same prefix again — confirms cache-aware routing picks the right prefill pod
     - system: "You are a helpful AI assistant specializing in distributed systems, cloud computing, and Kubernetes. You have deep expertise in GPU workloads, model serving, KV cache optimization, and inference pipeline architectures. Always provide detailed, technical answers with examples."
       user: "Explain the benefit of combining P/D disaggregation with prefix cache-aware scheduling."
-  expectedCodes: [200]
+  expected_codes: [200]
   timeout: 2m
-  retryAttempts: 3
-  retryInterval: 15s
-  metricsCheck:
+  retry_attempts: 3
+  retry_interval: 15s
+  metrics_check:
     enabled: true
-    checkVLLM: true
-    checkPD: true
-    checkNIXL: true
-    checkEPP: true
-    checkPrefixCache: true
-    checkScheduler: true
+    check_vllm: true
+    check_pd: true
+    check_nixl: true
+    check_epp: true
+    check_prefix_cache: true
+    check_scheduler: true
 cleanup: true

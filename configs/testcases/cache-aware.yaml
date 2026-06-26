@@ -3,28 +3,28 @@ description: "2 GPUs with prefix KV cache-aware routing, 2 replicas (default: Qw
 model:
   name: Qwen/Qwen3-0.6B
   uri: hf://Qwen/Qwen3-0.6B
-  displayName: qwen3-0.6b-cache-aware
+  display_name: qwen3-0.6b-cache-aware
   category: cache-aware
   cache:
     enabled: true
-    storageSize: 100Gi
-    keepPVC: true
+    storage_size: 100Gi
+    keep_pvc: true
     timeout: 15m
 deployment:
-  manifestPath: cache-aware.yaml
+  manifest_path: cache-aware.yaml
   replicas: 2
-  readyTimeout: 15m
+  ready_timeout: 15m
   resources:
     cpu: "4"
     memory: 32Gi
     gpus: 1
     rdma: false
 validation:
-  healthEndpoint: /health
-  healthPort: 8000
-  healthScheme: HTTPS
-  inferenceCheck: true
-  chatPrompts:
+  health_endpoint: /health
+  health_port: 8000
+  health_scheme: HTTPS
+  inference_check: true
+  chat_prompts:
     # Request 1: long system prefix — gets cached by vLLM
     - system: "You are a helpful AI assistant specializing in distributed systems, cloud computing, and Kubernetes. You have deep expertise in GPU workloads, model serving, KV cache optimization, and inference pipeline architectures. Always provide detailed, technical answers with examples."
       user: "What is prefix caching in LLM inference?"
@@ -34,14 +34,14 @@ validation:
     # Request 3: same prefix again — confirms cache hit pattern
     - system: "You are a helpful AI assistant specializing in distributed systems, cloud computing, and Kubernetes. You have deep expertise in GPU workloads, model serving, KV cache optimization, and inference pipeline architectures. Always provide detailed, technical answers with examples."
       user: "Explain the difference between prefix caching and full KV cache reuse."
-  expectedCodes: [200]
+  expected_codes: [200]
   timeout: 2m
-  retryAttempts: 3
-  retryInterval: 15s
-  metricsCheck:
+  retry_attempts: 3
+  retry_interval: 15s
+  metrics_check:
     enabled: true
-    checkVLLM: true
-    checkEPP: true
-    checkPrefixCache: true
-    checkScheduler: true
+    check_vllm: true
+    check_epp: true
+    check_prefix_cache: true
+    check_scheduler: true
 cleanup: true

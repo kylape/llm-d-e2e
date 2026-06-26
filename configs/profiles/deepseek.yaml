@@ -1,7 +1,7 @@
 name: moe
 description: "MoE with DP/EP — requires 8 GPUs + RDMA/RoCE"
 platform: any
-testCases:
+test_cases:
   - moe
 parallel: false
 timeout: 180m
