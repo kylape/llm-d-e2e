@@ -550,6 +550,13 @@ class Deployer:
                     resources = container.get("resources", {})
                     for section in ("limits", "requests"):
                         resources.get(section, {}).pop("nvidia.com/gpu", None)
+                    # Reduce CPU/memory for simulator (kind cluster compatibility)
+                    if "limits" in resources:
+                        resources["limits"]["cpu"] = "1"
+                        resources["limits"]["memory"] = "2Gi"
+                    if "requests" in resources:
+                        resources["requests"]["cpu"] = "500m"
+                        resources["requests"]["memory"] = "1Gi"
 
     def _inject_pull_secret(self, spec: dict, secret_name: str):
         for template_key in ("template", "prefill"):
