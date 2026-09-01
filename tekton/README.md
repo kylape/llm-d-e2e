@@ -38,7 +38,7 @@ For a manual run, install `image-build-rbac.yaml`,
 example builds:
 
 ```text
-quay.io/kylape/llm-d-e2e:tekton-poc
+quay.io/klape/llm-d-e2e:tekton-poc
 ```
 
 The Buildah step requires a privileged pod and uses the `vfs` storage driver.
@@ -49,7 +49,7 @@ The PipelineRun publishes `image-digest`. After a successful build, update the
 three qualification Task files to use the resulting immutable reference:
 
 ```text
-quay.io/kylape/llm-d-e2e@sha256:<digest>
+quay.io/klape/llm-d-e2e@sha256:<digest>
 ```
 
 The tag is only a bootstrap reference and should not be used for a shared or

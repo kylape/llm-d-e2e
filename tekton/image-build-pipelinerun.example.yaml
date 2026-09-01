@@ -12,7 +12,7 @@ spec:
     - name: revision
       value: codex/INFERENG-10317-tekton-poc
     - name: output-image
-      value: quay.io/kylape/llm-d-e2e:tekton-poc
+      value: quay.io/klape/llm-d-e2e:tekton-poc
     - name: dockerfile
       value: Dockerfile.tekton
     - name: context
