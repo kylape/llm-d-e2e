@@ -19,7 +19,7 @@ spec:
       description: READY or INFRASTRUCTURE_FAILURE
   steps:
     - name: render-and-deploy
-      image: quay.io/klape/llm-d-e2e:tekton-poc
+      image: quay.io/klape/llm-d-e2e@sha256:8dab87a75dc30104569844c50dde5a01ba741c395d79515dc4a361321d05d195
       env:
         - name: VLLM_IMAGE
           value: $(params.vllm_image)
