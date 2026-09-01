@@ -1,0 +1,50 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: llm-d-e2e-cleanup
+spec:
+  params:
+    - name: service-name
+      type: string
+    - name: namespace
+      type: string
+    - name: deploy-status
+      type: string
+    - name: test-status
+      type: string
+  workspaces:
+    - name: results
+  results:
+    - name: qualification-status
+      description: PASS, TEST_FAILURE, or INFRASTRUCTURE_FAILURE
+  steps:
+    - name: delete-workload
+      image: ghcr.io/kylape/llm-d-e2e:tekton-poc
+      env:
+        - name: SERVICE_NAME
+          value: $(params.service-name)
+        - name: NAMESPACE
+          value: $(params.namespace)
+      script: |
+        #!/usr/bin/env bash
+        set -Eeuo pipefail
+        kubectl delete llminferenceservice "$SERVICE_NAME" -n "$NAMESPACE" \
+          --ignore-not-found --wait=false
+        for attempt in $(seq 1 60); do
+          if ! kubectl get pods -n "$NAMESPACE" \
+            -l "app.kubernetes.io/name=$SERVICE_NAME" \
+            --no-headers 2>/dev/null | grep -q .; then
+            break
+          fi
+          sleep 5
+        done
+
+        if [ "$(params.deploy-status)" != "READY" ]; then
+          status=INFRASTRUCTURE_FAILURE
+        elif [ "$(params.test-status)" != "Succeeded" ]; then
+          status=TEST_FAILURE
+        else
+          status=PASS
+        fi
+        printf "%s" "$status" | tee "$(results.qualification-status.path)" \
+          > "$(workspaces.results.path)/qualification-status"

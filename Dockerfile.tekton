@@ -1,0 +1,22 @@
+FROM registry.access.redhat.com/ubi9/python-311:1
+
+ARG KUBECTL_VERSION=v1.33.0
+
+USER 0
+RUN microdnf install -y curl ca-certificates tar gzip bash \
+    && microdnf clean all \
+    && curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
+       -o /usr/local/bin/kubectl \
+    && chmod 0755 /usr/local/bin/kubectl
+
+WORKDIR /opt/app-root/src
+COPY pyproject.toml uv.lock ./
+COPY src ./src
+COPY tests ./tests
+COPY configs ./configs
+COPY tekton/manifests ./tekton/manifests
+
+RUN python -m pip install --no-cache-dir .
+
+USER 1001
+ENTRYPOINT ["llm-d-e2e"]

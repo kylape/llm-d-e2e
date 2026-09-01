@@ -21,6 +21,7 @@ from conformance.client import LLMClient
 from conformance.deployer import Deployer
 from conformance.metrics import Scraper
 from conformance.report import Report
+from conformance.render import model_name_from_uri
 
 log = logging.getLogger("conformance")
 
@@ -36,6 +37,9 @@ def pytest_addoption(parser):
     parser.addoption("--mode", default="deploy", help="Mode: deploy, discover, cache")
     parser.addoption("--model-source", default="hf", help="Model source: hf, pvc")
     parser.addoption("--model", default="", help="Override model name")
+    parser.addoption("--model-uri", default="", help="Override model URI")
+    parser.addoption("--vllm-image", default="", help="Override the main vLLM container image")
+    parser.addoption("--service-name", default="", help="Override the LLMInferenceService name")
     parser.addoption("--endpoint", default="", help="Service URL for discover mode")
     parser.addoption("--mock", default="", help="Simulator image (no GPU needed)")
     parser.addoption("--render-image", default="", help="vLLM CPU image for tokenizer render sidecar")
@@ -67,6 +71,18 @@ def _resolve_test_cases(config) -> list[TestCase]:
 def pytest_generate_tests(metafunc):
     if "tc" in metafunc.fixturenames:
         cases = _resolve_test_cases(metafunc.config)
+        service_name = metafunc.config.getoption("--service-name")
+        model_name = metafunc.config.getoption("--model")
+        model_uri = metafunc.config.getoption("--model-uri")
+        if service_name:
+            for case in cases:
+                case.name = service_name
+        for case in cases:
+            if model_uri:
+                case.model.uri = model_uri
+                case.model.name = model_name_from_uri(model_uri)
+            elif model_name:
+                case.model.name = model_name
         metafunc.parametrize("tc", cases, ids=[tc.name for tc in cases], scope="class")
 
 
@@ -77,6 +93,8 @@ def deployer(request) -> Deployer:
         platform=request.config.getoption("--platform"),
         namespace=request.config.getoption("--namespace"),
         model_source=request.config.getoption("--model-source"),
+        model_uri=request.config.getoption("--model-uri"),
+        vllm_image=request.config.getoption("--vllm-image"),
         mock_image=request.config.getoption("--mock"),
         render_image=request.config.getoption("--render-image"),
         pull_secret=request.config.getoption("--pull-secret"),
@@ -141,5 +159,3 @@ def test_mode(request) -> str:
 @pytest.fixture(scope="session")
 def mock_mode(request) -> bool:
     return bool(request.config.getoption("--mock"))
-
-

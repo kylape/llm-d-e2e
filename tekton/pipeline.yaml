@@ -1,0 +1,65 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: llm-d-e2e-smoke
+spec:
+  params:
+    - name: vllm_image
+      type: string
+      description: Immutable vLLM image reference for the main container
+    - name: model
+      type: string
+      description: Model URI, for example hf://Qwen/Qwen3-0.6B
+  workspaces:
+    - name: results
+  results:
+    - name: qualification-status
+      description: PASS, TEST_FAILURE, or INFRASTRUCTURE_FAILURE
+      value: $(tasks.cleanup.results.qualification-status)
+  tasks:
+    - name: deploy
+      taskRef:
+        name: llm-d-e2e-deploy
+      params:
+        - name: vllm_image
+          value: $(params.vllm_image)
+        - name: model
+          value: $(params.model)
+        - name: service-name
+          value: $(context.pipelineRun.name)-llmisvc
+        - name: namespace
+          value: $(context.pipelineRun.namespace)
+      workspaces:
+        - name: results
+          workspace: results
+    - name: smoke-test
+      runAfter:
+        - deploy
+      taskRef:
+        name: llm-d-e2e-smoke-test
+      params:
+        - name: model
+          value: $(params.model)
+        - name: service-name
+          value: $(context.pipelineRun.name)-llmisvc
+        - name: namespace
+          value: $(context.pipelineRun.namespace)
+      workspaces:
+        - name: results
+          workspace: results
+  finally:
+    - name: cleanup
+      taskRef:
+        name: llm-d-e2e-cleanup
+      params:
+        - name: service-name
+          value: $(context.pipelineRun.name)-llmisvc
+        - name: namespace
+          value: $(context.pipelineRun.namespace)
+        - name: deploy-status
+          value: $(tasks.deploy.status)
+        - name: test-status
+          value: $(tasks.smoke-test.status)
+      workspaces:
+        - name: results
+          workspace: results

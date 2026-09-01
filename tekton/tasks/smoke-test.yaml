@@ -1,0 +1,50 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: llm-d-e2e-smoke-test
+spec:
+  params:
+    - name: model
+      type: string
+    - name: service-name
+      type: string
+    - name: namespace
+      type: string
+  workspaces:
+    - name: results
+  results:
+    - name: smoke-status
+      description: PASS or TEST_FAILURE
+  steps:
+    - name: run-smoke
+      image: ghcr.io/kylape/llm-d-e2e:tekton-poc
+      env:
+        - name: MODEL_URI
+          value: $(params.model)
+        - name: SERVICE_NAME
+          value: $(params.service-name)
+        - name: NAMESPACE
+          value: $(params.namespace)
+      script: |
+        #!/usr/bin/env bash
+        set -uo pipefail
+        report_dir="$(workspaces.results.path)/reports"
+        mkdir -p "$report_dir"
+        set +e
+        llm-d-e2e \
+          --profile configs/profiles/smoke.yaml \
+          --mode discover \
+          --namespace "$NAMESPACE" \
+          --service-name "$SERVICE_NAME" \
+          --model-uri "$MODEL_URI" \
+          --nocleanup \
+          --report-dir "$report_dir" \
+          --junitxml "$report_dir/junit.xml"
+        rc=$?
+        set -e
+        if [ "$rc" -eq 0 ]; then
+          printf PASS > "$(results.smoke-status.path)"
+          exit 0
+        fi
+        printf TEST_FAILURE > "$(results.smoke-status.path)"
+        exit "$rc"

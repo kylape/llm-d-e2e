@@ -1,0 +1,92 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: llm-d-e2e
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: llm-d-e2e-runner
+  namespace: llm-d-e2e
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: llm-d-e2e-runner
+  namespace: llm-d-e2e
+rules:
+  - apiGroups: [""]
+    resources: ["pods", "pods/log", "pods/exec", "pods/portforward", "services", "services/portforward", "secrets", "configmaps", "persistentvolumeclaims", "events"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["serving.kserve.io"]
+    resources: ["llminferenceservices"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["inference.networking.k8s.io"]
+    resources: ["inferencepools"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: llm-d-e2e-runner
+  namespace: llm-d-e2e
+subjects:
+  - kind: ServiceAccount
+    name: llm-d-e2e-runner
+    namespace: llm-d-e2e
+roleRef:
+  kind: Role
+  name: llm-d-e2e-runner
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: llm-d-e2e-read-platform
+rules:
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get"]
+  - apiGroups: ["apiextensions.k8s.io"]
+    resources: ["customresourcedefinitions"]
+    verbs: ["get"]
+  - apiGroups: ["gateway.networking.k8s.io"]
+    resources: ["gateways", "httproutes"]
+    verbs: ["get", "list", "watch"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: llm-d-e2e-read-platform
+subjects:
+  - kind: ServiceAccount
+    name: llm-d-e2e-runner
+    namespace: llm-d-e2e
+roleRef:
+  kind: ClusterRole
+  name: llm-d-e2e-read-platform
+  apiGroup: rbac.authorization.k8s.io
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: llm-d-e2e-gateway-access
+  namespace: redhat-ods-applications
+rules:
+  - apiGroups: [""]
+    resources: ["services", "services/portforward"]
+    verbs: ["get", "list", "watch", "create"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: llm-d-e2e-gateway-access
+  namespace: redhat-ods-applications
+subjects:
+  - kind: ServiceAccount
+    name: llm-d-e2e-runner
+    namespace: llm-d-e2e
+roleRef:
+  kind: Role
+  name: llm-d-e2e-gateway-access
+  apiGroup: rbac.authorization.k8s.io

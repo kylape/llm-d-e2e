@@ -1,0 +1,48 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: llm-d-e2e-deploy
+spec:
+  params:
+    - name: vllm_image
+      type: string
+    - name: model
+      type: string
+    - name: service-name
+      type: string
+    - name: namespace
+      type: string
+  workspaces:
+    - name: results
+  results:
+    - name: deployment-status
+      description: READY or INFRASTRUCTURE_FAILURE
+  steps:
+    - name: render-and-deploy
+      image: ghcr.io/kylape/llm-d-e2e:tekton-poc
+      env:
+        - name: VLLM_IMAGE
+          value: $(params.vllm_image)
+        - name: MODEL_URI
+          value: $(params.model)
+        - name: SERVICE_NAME
+          value: $(params.service-name)
+        - name: NAMESPACE
+          value: $(params.namespace)
+      script: |
+        #!/usr/bin/env bash
+        set -Eeuo pipefail
+        status=INFRASTRUCTURE_FAILURE
+        trap 'printf "%s" "$status" > "$(results.deployment-status.path)"' EXIT
+
+        python -m conformance.render \
+          --source tekton/manifests/single-gpu-smoke.yaml \
+          --destination "$(workspaces.results.path)/llmisvc.yaml" \
+          --name "$SERVICE_NAME" \
+          --namespace "$NAMESPACE" \
+          --model-uri "$MODEL_URI" \
+          --vllm-image "$VLLM_IMAGE"
+        kubectl apply -f "$(workspaces.results.path)/llmisvc.yaml"
+        kubectl wait --for=condition=Ready=True \
+          --timeout=20m "llminferenceservice/$SERVICE_NAME" -n "$NAMESPACE"
+        status=READY

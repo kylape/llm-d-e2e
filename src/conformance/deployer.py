@@ -40,6 +40,8 @@ class Deployer:
         platform: str = "any",
         namespace: str = "llm-conformance-test",
         model_source: str = "hf",
+        model_uri: str = "",
+        vllm_image: str = "",
         mock_image: str = "",
         render_image: str = "",
         pull_secret: str = "",
@@ -50,6 +52,8 @@ class Deployer:
         self.platform = platform
         self.namespace = namespace
         self.model_source = model_source
+        self.model_uri = model_uri
+        self.vllm_image = vllm_image
         self.mock_image = mock_image
         self._render_image_override = render_image
         self.pull_secret = pull_secret
@@ -217,7 +221,8 @@ class Deployer:
                 self.ensure_pull_secret(secret_name)
             self.ensure_gateway_allows_namespace()
             self.kubectl("apply", "-n", self.namespace, "-f", tmp_path)
-            self.ensure_metrics_rbac(tc.name)
+            if tc.validation.metrics_check.enabled:
+                self.ensure_metrics_rbac(tc.name)
             result.success = True
         except RuntimeError as e:
             result.error = str(e)
@@ -440,7 +445,8 @@ class Deployer:
 
     def cleanup(self, tc: TestCase, timeout: float = 120):
         log.info("Cleaning up %s", tc.name)
-        self.cleanup_metrics_rbac(tc.name)
+        if tc.validation.metrics_check.enabled:
+            self.cleanup_metrics_rbac(tc.name)
         self.kubectl(
             "delete", "llminferenceservice", tc.name, "-n", self.namespace,
             "--timeout", f"{int(timeout)}s", "--ignore-not-found",
@@ -471,7 +477,14 @@ class Deployer:
 
         spec = manifest.get("spec", {})
 
-        if self.mock_image:
+        if self.model_uri:
+            model = spec.setdefault("model", {})
+            model["uri"] = self.model_uri
+            model["name"] = self.model_uri.removeprefix("hf://").rstrip("/")
+
+        if self.vllm_image:
+            self._set_vllm_image(spec, self.vllm_image)
+        elif self.mock_image:
             model = spec.setdefault("model", {})
             model["name"] = tc.model.name
             model["uri"] = tc.model.uri
@@ -489,6 +502,15 @@ class Deployer:
             annotations["serving.kserve.io/disable-auth"] = "true"
 
         return manifest
+
+    @staticmethod
+    def _set_vllm_image(spec: dict, image: str):
+        """Set a real vLLM image without changing its entrypoint or arguments."""
+        for template_key in ("template", "prefill"):
+            template = spec.get(template_key, {})
+            for container in template.get("containers", []):
+                if container.get("name") == "main":
+                    container["image"] = image
 
     def _replace_vllm_image(self, spec: dict, image: str, model_name: str = ""):
         for template_key in ("template", "prefill"):

@@ -1,0 +1,24 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: llm-d-smoke-
+  namespace: llm-d-e2e
+spec:
+  pipelineRef:
+    name: llm-d-e2e-smoke
+  params:
+    - name: vllm_image
+      value: quay.io/example/vllm@sha256:replace-me
+    - name: model
+      value: hf://Qwen/Qwen3-0.6B
+  taskRunTemplate:
+    serviceAccountName: llm-d-e2e-runner
+  workspaces:
+    - name: results
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi

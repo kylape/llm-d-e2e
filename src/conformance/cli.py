@@ -30,6 +30,9 @@ def main():
     parser.add_argument("--mode", default="deploy", choices=["deploy", "discover", "cache"], help="Run mode")
     parser.add_argument("--model-source", default="hf", choices=["hf", "pvc"], help="Model source")
     parser.add_argument("--model", default="", help="Override model name")
+    parser.add_argument("--model-uri", default="", help="Override model URI")
+    parser.add_argument("--vllm-image", default="", help="Override the main vLLM container image")
+    parser.add_argument("--service-name", default="", help="Override the LLMInferenceService name")
     parser.add_argument("--endpoint", default="", help="Service URL for discover mode")
     parser.add_argument(
         "--mock", default="", nargs="?", const=DEFAULT_MOCK_IMAGE,
@@ -49,6 +52,7 @@ def main():
     # Behavior
     parser.add_argument("--nocleanup", action="store_true", help="Keep resources after test")
     parser.add_argument("--report-dir", default="reports", help="Report output directory")
+    parser.add_argument("--junitxml", default="", help="Write pytest JUnit XML to this path")
     parser.add_argument("--verbose", "-v", action="store_true", help="Verbose output")
     parser.add_argument("--fail-fast", "-x", action="store_true", help="Stop on first failure")
     parser.add_argument("--html", default="", help="Generate HTML report at path")
@@ -88,6 +92,9 @@ def main():
         "mode": "--mode",
         "model_source": "--model-source",
         "model": "--model",
+        "model_uri": "--model-uri",
+        "vllm_image": "--vllm-image",
+        "service_name": "--service-name",
         "endpoint": "--endpoint",
         "mock": "--mock",
         "render_image": "--render-image",
@@ -113,6 +120,8 @@ def main():
         pytest_args.append("-x")
     if args.html:
         pytest_args.extend(["--html", args.html, "--self-contained-html"])
+    if args.junitxml:
+        pytest_args.extend(["--junitxml", args.junitxml])
 
     pytest_args.extend(["--tb", "short", "--timeout", "21600"])
 
