@@ -8,7 +8,7 @@ spec:
     name: llm-d-e2e-smoke
   params:
     - name: vllm_image
-      value: quay.io/example/vllm@sha256:replace-me
+      value: quay.io/aipcc/rhaiis/cuda-ubi9:3.5
     - name: model
       value: hf://Qwen/Qwen3-0.6B
   taskRunTemplate:
