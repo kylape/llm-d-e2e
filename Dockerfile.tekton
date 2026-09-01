@@ -4,7 +4,7 @@ ARG KUBECTL_VERSION=v1.33.0
 ARG KUBECTL_SHA256=9efe8d3facb23e1618cba36fb1c4e15ac9dc3ed5a2c2e18109e4a66b2bac12dc
 
 USER 0
-RUN dnf install -y curl ca-certificates tar gzip bash \
+RUN dnf install -y ca-certificates tar gzip bash \
     && dnf clean all \
     && curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
        -o /usr/local/bin/kubectl \
