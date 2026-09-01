@@ -8,6 +8,8 @@ kind: ServiceAccount
 metadata:
   name: llm-d-e2e-runner
   namespace: llm-d-e2e
+imagePullSecrets:
+  - name: klape-tekton-pull-secret
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role

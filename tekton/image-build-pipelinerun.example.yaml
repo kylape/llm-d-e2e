@@ -22,4 +22,4 @@ spec:
   workspaces:
     - name: registry-auth
       secret:
-        secretName: quay-credentials
+        secretName: klape-tekton-pull-secret

@@ -30,7 +30,8 @@ The repository includes a separate image-build Pipeline. It builds
 Python 3.11-based runner image to Quay. The image includes Python dependencies,
 kubectl, the e2e suite, and the pinned smoke manifest.
 
-Create a Quay repository and a registry Secret named `quay-credentials`. The
+Create a Quay repository and a registry Secret named
+`klape-tekton-pull-secret`. The
 Secret must contain a `.dockerconfigjson` key and must not be committed to Git.
 For a manual run, install `image-build-rbac.yaml`,
 `image-build-task.yaml`, and `image-build-pipeline.yaml`, then adapt
