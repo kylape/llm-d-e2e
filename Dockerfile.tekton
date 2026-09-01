@@ -1,13 +1,24 @@
 FROM registry.access.redhat.com/ubi9/python-311:1
 
 ARG KUBECTL_VERSION=v1.33.0
+ARG KUBECTL_SHA256=9efe8d3facb23e1618cba36fb1c4e15ac9dc3ed5a2c2e18109e4a66b2bac12dc
 
 USER 0
-RUN microdnf install -y curl ca-certificates tar gzip bash \
-    && microdnf clean all \
-    && curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
-       -o /usr/local/bin/kubectl \
-    && chmod 0755 /usr/local/bin/kubectl
+RUN python - <<PY
+import hashlib
+import os
+import urllib.request
+
+path = "/usr/local/bin/kubectl"
+url = "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl"
+expected = "${KUBECTL_SHA256}"
+urllib.request.urlretrieve(url, path)
+actual = hashlib.sha256(open(path, "rb").read()).hexdigest()
+if actual != expected:
+    os.remove(path)
+    raise SystemExit(f"kubectl checksum mismatch: {actual} != {expected}")
+os.chmod(path, 0o755)
+PY
 
 WORKDIR /opt/app-root/src
 COPY pyproject.toml uv.lock ./
