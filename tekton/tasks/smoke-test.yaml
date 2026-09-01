@@ -10,6 +10,9 @@ spec:
       type: string
     - name: namespace
       type: string
+    - name: test-model
+      type: string
+      default: ""
   workspaces:
     - name: results
   results:
@@ -25,12 +28,18 @@ spec:
           value: $(params.service-name)
         - name: NAMESPACE
           value: $(params.namespace)
+        - name: TEST_MODEL
+          value: $(params.test-model)
       script: |
         #!/usr/bin/env bash
         set -uo pipefail
         report_dir="$(workspaces.results.path)/reports"
         mkdir -p "$report_dir"
         set +e
+        test_model_args=()
+        if [ -n "$TEST_MODEL" ]; then
+          test_model_args=(--model "$TEST_MODEL")
+        fi
         llm-d-e2e \
           --profile configs/profiles/smoke.yaml \
           --mode discover \
@@ -39,7 +48,8 @@ spec:
           --model-uri "$MODEL_URI" \
           --nocleanup \
           --report-dir "$report_dir" \
-          --junitxml "$report_dir/junit.xml"
+          --junitxml "$report_dir/junit.xml" \
+          "${test_model_args[@]}"
         rc=$?
         set -e
         if [ "$rc" -eq 0 ]; then

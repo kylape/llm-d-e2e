@@ -1,0 +1,26 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: llm-d-smoke-test-failure-
+  namespace: klape-llm-d-e2e
+spec:
+  pipelineRef:
+    name: llm-d-e2e-smoke
+  params:
+    - name: vllm_image
+      value: quay.io/aipcc/rhaiis/cuda-ubi9:3.5
+    - name: model
+      value: hf://Qwen/Qwen3-0.6B
+    - name: test_model
+      value: intentionally-not-served
+  taskRunTemplate:
+    serviceAccountName: llm-d-e2e-runner
+  workspaces:
+    - name: results
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi

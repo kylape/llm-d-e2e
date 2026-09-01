@@ -84,3 +84,16 @@ service from the pinned
 `llm-d-conformance-manifests` smoke resource. The smoke task then invokes
 `llm-d-e2e` in discover mode, and the finally task removes the unique service
 and its generated workloads.
+
+## Negative-path validation
+
+The repository includes two validation PipelineRuns:
+
+* `pipelinerun.failure-infrastructure.example.yaml` uses a nonexistent vLLM
+  image and a two-minute readiness timeout. It should produce
+  `INFRASTRUCTURE_FAILURE` while still running cleanup.
+* `pipelinerun.failure-test.example.yaml` deploys the known-good service but
+  overrides the model name used by the smoke test. The service becomes Ready,
+  the inference test fails, and cleanup should produce `TEST_FAILURE`.
+
+These manifests validate failure handling and are not normal pipeline inputs.

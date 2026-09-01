@@ -10,6 +10,14 @@ spec:
     - name: model
       type: string
       description: Model URI, for example hf://Qwen/Qwen3-0.6B
+    - name: readiness_timeout
+      type: string
+      default: 20m
+      description: Optional readiness timeout for negative-path validation
+    - name: test_model
+      type: string
+      default: ""
+      description: Optional model name override for negative-path validation
   workspaces:
     - name: results
   tasks:
@@ -25,6 +33,8 @@ spec:
           value: $(context.pipelineRun.name)-llmisvc
         - name: namespace
           value: $(context.pipelineRun.namespace)
+        - name: readiness-timeout
+          value: $(params.readiness_timeout)
       workspaces:
         - name: results
           workspace: results
@@ -40,6 +50,8 @@ spec:
           value: $(context.pipelineRun.name)-llmisvc
         - name: namespace
           value: $(context.pipelineRun.namespace)
+        - name: test-model
+          value: $(params.test_model)
       workspaces:
         - name: results
           workspace: results

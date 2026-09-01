@@ -12,6 +12,9 @@ spec:
       type: string
     - name: namespace
       type: string
+    - name: readiness-timeout
+      type: string
+      default: 20m
   workspaces:
     - name: results
   results:
@@ -44,5 +47,5 @@ spec:
           --vllm-image "$VLLM_IMAGE"
         kubectl apply -f "$(workspaces.results.path)/llmisvc.yaml"
         kubectl wait --for=condition=Ready=True \
-          --timeout=20m "llminferenceservice/$SERVICE_NAME" -n "$NAMESPACE"
+          --timeout="$(params.readiness-timeout)" "llminferenceservice/$SERVICE_NAME" -n "$NAMESPACE"
         status=READY
