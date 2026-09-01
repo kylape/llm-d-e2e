@@ -76,7 +76,11 @@ The only PipelineRun parameters are:
   `spec.template.containers[name=main].image`.
 * `model` — a model URI such as `hf://Qwen/Qwen3-0.6B`.
 
-The deploy task renders the service from the pinned
+The cleanup Task publishes `qualification-status` as a Tekton Task result and
+writes the same value to the results workspace. Tekton does not permit a
+Pipeline-level result to reference a Task in `finally`, so consumers should
+read that TaskRun result or workspace artifact. The deploy task renders the
+service from the pinned
 `llm-d-conformance-manifests` smoke resource. The smoke task then invokes
 `llm-d-e2e` in discover mode, and the finally task removes the unique service
 and its generated workloads.

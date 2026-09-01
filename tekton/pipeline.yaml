@@ -12,10 +12,6 @@ spec:
       description: Model URI, for example hf://Qwen/Qwen3-0.6B
   workspaces:
     - name: results
-  results:
-    - name: qualification-status
-      description: PASS, TEST_FAILURE, or INFRASTRUCTURE_FAILURE
-      value: $(tasks.cleanup.results.qualification-status)
   tasks:
     - name: deploy
       taskRef:
