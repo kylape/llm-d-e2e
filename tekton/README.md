@@ -19,7 +19,7 @@ Before installing the resources in this directory, verify that the
 `tekton-pipelines` controllers are ready and that the cluster has the RHAII
 `LLMInferenceService` CRD and a ready provider/KServe installation.
 
-The `llm-d-e2e` namespace must contain `rhai-pull-secret`. The pipeline service
+The `klape-llm-d-e2e` namespace must contain `rhai-pull-secret`. The pipeline service
 account also needs access to the inference gateway service in
 `redhat-ods-applications`, as described in `namespace-rbac.yaml`.
 

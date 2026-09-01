@@ -2,4 +2,4 @@ apiVersion: v1
 kind: ServiceAccount
 metadata:
   name: llm-d-e2e-image-builder
-  namespace: llm-d-e2e
+  namespace: klape-llm-d-e2e
