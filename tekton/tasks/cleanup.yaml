@@ -41,7 +41,7 @@ spec:
 
         if [ "$(params.deploy-status)" != "READY" ]; then
           status=INFRASTRUCTURE_FAILURE
-        elif [ "$(params.test-status)" != "Succeeded" ]; then
+        elif [ "$(params.test-status)" != "PASS" ]; then
           status=TEST_FAILURE
         else
           status=PASS

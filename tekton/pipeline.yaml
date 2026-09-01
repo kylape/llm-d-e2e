@@ -65,9 +65,9 @@ spec:
         - name: namespace
           value: $(context.pipelineRun.namespace)
         - name: deploy-status
-          value: $(tasks.deploy.status)
+          value: $(tasks.deploy.results.deployment-status)
         - name: test-status
-          value: $(tasks.smoke-test.status)
+          value: $(tasks.smoke-test.results.smoke-status)
       workspaces:
         - name: results
           workspace: results
