@@ -1,0 +1,83 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: llm-d-e2e-image-build
+spec:
+  description: Clone llm-d-e2e, build Dockerfile.tekton, and push the runner image.
+  params:
+    - name: git-url
+      type: string
+      description: Git repository containing the runner image Dockerfile
+    - name: revision
+      type: string
+      default: main
+      description: Branch, tag, or commit to build
+    - name: output-image
+      type: string
+      description: Fully qualified image reference to push
+    - name: dockerfile
+      type: string
+      default: Dockerfile.tekton
+      description: Dockerfile path relative to the repository root
+    - name: context
+      type: string
+      default: .
+      description: Build context path relative to the repository root
+  workspaces:
+    - name: registry-auth
+      description: Secret workspace containing a .dockerconfigjson for the output registry
+  results:
+    - name: image-url
+      description: Image reference pushed by the Task
+    - name: image-digest
+      description: Digest returned by the registry
+    - name: git-revision
+      description: Commit that was built
+  steps:
+    - name: clone
+      image: alpine/git:2.47.2
+      script: |
+        #!/bin/sh
+        set -eu
+        rm -rf /workspace/source
+        mkdir -p /workspace/source
+        git init /workspace/source
+        git -C /workspace/source remote add origin "$(params.git-url)"
+        git -C /workspace/source fetch --depth=1 origin "$(params.revision)"
+        git -C /workspace/source checkout --detach FETCH_HEAD
+        git -C /workspace/source rev-parse HEAD > "$(results.git-revision.path)"
+    - name: build-and-push
+      image: quay.io/buildah/stable:v1.39
+      securityContext:
+        privileged: true
+      env:
+        - name: HOME
+          value: /tekton/home
+        - name: STORAGE_DRIVER
+          value: vfs
+      script: |
+        #!/usr/bin/env bash
+        set -Eeuo pipefail
+
+        authfile="$(workspaces.registry-auth.path)/.dockerconfigjson"
+        if [[ ! -s "$authfile" ]]; then
+          echo "registry-auth workspace must contain .dockerconfigjson" >&2
+          exit 1
+        fi
+
+        image="$(params.output-image)"
+        registry="${image%%/*}"
+        buildah login --authfile "$authfile" "$registry"
+        buildah bud \
+          --storage-driver="$STORAGE_DRIVER" \
+          --format=oci \
+          --file "/workspace/source/$(params.dockerfile)" \
+          --tag "$image" \
+          "/workspace/source/$(params.context)"
+        buildah push \
+          --storage-driver="$STORAGE_DRIVER" \
+          --authfile "$authfile" \
+          --digestfile "$(results.image-digest.path)" \
+          "$image" \
+          "docker://$image"
+        printf '%s' "$image" > "$(results.image-url.path)"

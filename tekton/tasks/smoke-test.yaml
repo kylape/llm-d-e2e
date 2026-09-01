@@ -17,7 +17,7 @@ spec:
       description: PASS or TEST_FAILURE
   steps:
     - name: run-smoke
-      image: ghcr.io/kylape/llm-d-e2e:tekton-poc
+      image: quay.io/kylape/llm-d-e2e:tekton-poc
       env:
         - name: MODEL_URI
           value: $(params.model)

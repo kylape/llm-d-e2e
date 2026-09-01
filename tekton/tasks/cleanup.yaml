@@ -19,7 +19,7 @@ spec:
       description: PASS, TEST_FAILURE, or INFRASTRUCTURE_FAILURE
   steps:
     - name: delete-workload
-      image: ghcr.io/kylape/llm-d-e2e:tekton-poc
+      image: quay.io/kylape/llm-d-e2e:tekton-poc
       env:
         - name: SERVICE_NAME
           value: $(params.service-name)

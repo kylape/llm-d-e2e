@@ -1,0 +1,25 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: llm-d-e2e-image-build-
+  namespace: llm-d-e2e
+spec:
+  pipelineRef:
+    name: llm-d-e2e-image-build
+  params:
+    - name: git-url
+      value: https://github.com/kylape/llm-d-e2e.git
+    - name: revision
+      value: codex/INFERENG-10317-tekton-poc
+    - name: output-image
+      value: quay.io/kylape/llm-d-e2e:tekton-poc
+    - name: dockerfile
+      value: Dockerfile.tekton
+    - name: context
+      value: .
+  taskRunTemplate:
+    serviceAccountName: llm-d-e2e-image-builder
+  workspaces:
+    - name: registry-auth
+      secret:
+        secretName: quay-credentials

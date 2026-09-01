@@ -1,0 +1,51 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: llm-d-e2e-image-build
+spec:
+  description: Build and publish the Red Hat UBI-based llm-d-e2e Tekton runner image.
+  params:
+    - name: git-url
+      type: string
+      description: Git repository containing the runner image Dockerfile
+    - name: revision
+      type: string
+      default: main
+      description: Branch, tag, or commit to build
+    - name: output-image
+      type: string
+      description: Fully qualified Quay image reference to push
+    - name: dockerfile
+      type: string
+      default: Dockerfile.tekton
+    - name: context
+      type: string
+      default: .
+  workspaces:
+    - name: registry-auth
+      description: Secret workspace containing a .dockerconfigjson for Quay
+  results:
+    - name: image-url
+      value: $(tasks.build.results.image-url)
+    - name: image-digest
+      value: $(tasks.build.results.image-digest)
+    - name: git-revision
+      value: $(tasks.build.results.git-revision)
+  tasks:
+    - name: build
+      taskRef:
+        name: llm-d-e2e-image-build
+      params:
+        - name: git-url
+          value: $(params.git-url)
+        - name: revision
+          value: $(params.revision)
+        - name: output-image
+          value: $(params.output-image)
+        - name: dockerfile
+          value: $(params.dockerfile)
+        - name: context
+          value: $(params.context)
+      workspaces:
+        - name: registry-auth
+          workspace: registry-auth
