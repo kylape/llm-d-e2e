@@ -99,6 +99,18 @@ The Burrito path requires the target namespace to already contain
 `namespace-rbac.yaml`. It also requires the named LocalQueue and a compatible
 Kueue/AppWrapper installation.
 
+## Fozzie queue
+
+`kueue/fozzie-queue.yaml` defines a deliberately namespace-scoped queue for
+this PoC. It accounts for `nvidia.com/gpu` rather than the unrelated
+`benchflow.io/remote-gpu` resource used by the existing `local` queue. The
+initial quota is four GPUs, so four one-GPU legs may be admitted concurrently;
+additional matrix legs remain pending until quota is released.
+
+Review this manifest and obtain approval before applying it to Fozzie. The
+ClusterQueue is cluster-scoped even though its namespace selector restricts
+workloads to `klape-llm-d-e2e`.
+
 The cleanup Task publishes `qualification-status` as a Tekton Task result and
 writes the same value to the results workspace. Tekton does not permit a
 Pipeline-level result to reference a Task in `finally`, so consumers should

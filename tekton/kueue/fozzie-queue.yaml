@@ -1,0 +1,34 @@
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ResourceFlavor
+metadata:
+  name: klape-rhaii-gpu
+spec: {}
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: ClusterQueue
+metadata:
+  name: klape-llm-d-e2e
+spec:
+  namespaceSelector:
+    matchLabels:
+      kubernetes.io/metadata.name: klape-llm-d-e2e
+  queueingStrategy: BestEffortFIFO
+  resourceGroups:
+    - coveredResources:
+        - nvidia.com/gpu
+      flavors:
+        - name: klape-rhaii-gpu
+          resources:
+            - name: nvidia.com/gpu
+              nominalQuota: "4"
+  preemption:
+    reclaimWithinCohort: Any
+    withinClusterQueue: LowerPriority
+---
+apiVersion: kueue.x-k8s.io/v1beta2
+kind: LocalQueue
+metadata:
+  name: klape-llm-d-e2e
+  namespace: klape-llm-d-e2e
+spec:
+  clusterQueue: klape-llm-d-e2e
