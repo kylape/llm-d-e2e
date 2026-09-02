@@ -8,7 +8,7 @@ spec:
     name: llm-d-e2e-burrito-matrix
   params:
     - name: runner_image
-      value: quay.io/klape/llm-d-e2e@sha256:1e162889a330ad8c9c9589e40890b07d2586baf01b3f1a9db665cacd0880e129
+      value: quay.io/klape/llm-d-e2e@sha256:90016ebdb7e97dd2750a2d8068c33547a1571c6c879ee1a0e4e6b97f40edcf5a
     - name: queue
       value: klape-llm-d-e2e
     - name: pull_secret_name
