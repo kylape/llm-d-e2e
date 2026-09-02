@@ -62,6 +62,7 @@ spec:
 
         service_name="${TASK_RUN_NAME}-llmisvc"
         job_name="${TASK_RUN_NAME}-e2e"
+        results_pvc_name="${TASK_RUN_NAME}-results"
 
         python -m conformance.render \
           --source tekton/manifests/single-gpu-smoke.yaml \
@@ -97,6 +98,7 @@ spec:
           --queue "$QUEUE_NAME" \
           --image-pull-secret "$PULL_SECRET_NAME" \
           --pull-secret-source-ns "$PULL_SECRET_SOURCE_NAMESPACE" \
+          --results-pvc "$results_pvc_name" \
           --completion-trigger \
           --completion-job-name "$job_name" \
           < "$input_file" 2>&1 | tee "$log_file"

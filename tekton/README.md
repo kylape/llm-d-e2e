@@ -94,6 +94,10 @@ additional legs can remain pending in the LocalQueue until GPU quota is
 available. The target namespace is shared for this initial implementation and
 resource names are made unique from the TaskRun name.
 
+Each Burrito matrix leg creates a uniquely named results PVC and mounts it at
+`/results` in the completion Job. AppWrapper cleanup removes the service and
+Job while preserving the result PVC for report inspection.
+
 The Burrito path requires the target namespace to already contain
 `llm-d-e2e-runner`, `rhai-pull-secret`, and the AppWrapper permissions in
 `namespace-rbac.yaml`. It also requires the named LocalQueue and a compatible
