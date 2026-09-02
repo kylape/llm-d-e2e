@@ -33,10 +33,6 @@ spec:
       taskRef:
         name: llm-d-e2e-burrito-qualification
       params:
-        - name: vllm_image
-          value: $(matrix.params.vllm_image)
-        - name: model
-          value: $(matrix.params.model)
         - name: queue
           value: $(params.queue)
         - name: pull_secret_name
