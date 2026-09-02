@@ -1,7 +1,7 @@
 FROM rust:1.88-bookworm AS burrito-builder
 
 ARG BURRITO_REPO=http://forgejo.klape-llm-d-e2e.svc.cluster.local:3000/kylape/burrito.git
-ARG BURRITO_REF=codex/INFERENG-10381-generic-e2e
+ARG BURRITO_REF=main
 
 RUN git clone --depth=1 --branch "${BURRITO_REF}" "${BURRITO_REPO}" /opt/burrito
 WORKDIR /opt/burrito
