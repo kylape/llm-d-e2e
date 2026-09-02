@@ -1,0 +1,41 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: __JOB_NAME__
+  namespace: __NAMESPACE__
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      serviceAccountName: llm-d-e2e-runner
+      containers:
+        - name: e2e
+          image: __RUNNER_IMAGE__
+          command: ["/bin/bash", "-lc"]
+          args:
+            - |
+              set -uo pipefail
+              mkdir -p /results/reports
+              llm-d-e2e \
+                --profile configs/profiles/smoke.yaml \
+                --mode discover \
+                --namespace "$POD_NAMESPACE" \
+                --service-name __SERVICE_NAME__ \
+                --model-uri "$MODEL_URI" \
+                --nocleanup \
+                --report-dir /results/reports \
+                --junitxml /results/reports/junit.xml
+          env:
+            - name: MODEL_URI
+              value: __MODEL_URI__
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
+          volumeMounts:
+            - name: results
+              mountPath: /results
+      volumes:
+        - name: results
+          emptyDir: {}

@@ -1,3 +1,12 @@
+FROM rust:1.88-bookworm AS burrito-builder
+
+ARG BURRITO_REPO=https://github.com/kylape/burrito.git
+ARG BURRITO_REF=codex/INFERENG-10381-generic-e2e
+
+RUN git clone --depth=1 --branch "${BURRITO_REF}" "${BURRITO_REPO}" /opt/burrito
+WORKDIR /opt/burrito
+RUN cargo build --locked --release
+
 FROM registry.access.redhat.com/ubi9/python-311:1
 
 ARG KUBECTL_VERSION=v1.33.0
@@ -17,6 +26,7 @@ COPY src ./src
 COPY tests ./tests
 COPY configs ./configs
 COPY tekton/manifests ./tekton/manifests
+COPY --from=burrito-builder /opt/burrito/target/release/burrito /usr/local/bin/burrito
 
 RUN python -m pip install --no-cache-dir .
 

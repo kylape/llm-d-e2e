@@ -10,7 +10,7 @@ spec:
     - name: git-url
       value: https://github.com/kylape/llm-d-e2e.git
     - name: revision
-      value: codex/INFERENG-10317-tekton-poc
+      value: codex/INFERENG-10381-burrito-matrix
     - name: output-image
       value: quay.io/klape/llm-d-e2e:tekton-poc
     - name: dockerfile

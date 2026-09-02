@@ -1,0 +1,49 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: llm-d-e2e-burrito-matrix
+spec:
+  description: Run the llm-d-e2e smoke profile for each explicit image/model pair.
+  params:
+    - name: runner_image
+      type: string
+      description: Immutable runner image containing llm-d-e2e and Burrito.
+    - name: queue
+      type: string
+      default: klape-llm-d-e2e
+    - name: pull_secret_name
+      type: string
+      default: rhai-pull-secret
+    - name: pull_secret_source_namespace
+      type: string
+      default: klape-llm-d-e2e
+    - name: namespace
+      type: string
+      default: klape-llm-d-e2e
+  tasks:
+    - name: qualify
+      matrix:
+        params:
+          - name: vllm_image
+            value:
+              - quay.io/aipcc/rhaiis/cuda-ubi9:3.5
+          - name: model
+            value:
+              - hf://Qwen/Qwen3-0.6B
+      taskRef:
+        name: llm-d-e2e-burrito-qualification
+      params:
+        - name: vllm_image
+          value: $(matrix.params.vllm_image)
+        - name: model
+          value: $(matrix.params.model)
+        - name: queue
+          value: $(params.queue)
+        - name: pull_secret_name
+          value: $(params.pull_secret_name)
+        - name: pull_secret_source_namespace
+          value: $(params.pull_secret_source_namespace)
+        - name: runner_image
+          value: $(params.runner_image)
+        - name: namespace
+          value: $(params.namespace)

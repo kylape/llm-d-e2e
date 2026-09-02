@@ -1,0 +1,116 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: llm-d-e2e-burrito-qualification
+spec:
+  description: Run one llm-d-e2e smoke qualification through Burrito and Kueue.
+  params:
+    - name: vllm_image
+      type: string
+      description: Immutable vLLM image reference.
+    - name: model
+      type: string
+      description: Model URI, for example hf://Qwen/Qwen3-0.6B.
+    - name: queue
+      type: string
+      default: klape-llm-d-e2e
+      description: LocalQueue selected by Burrito.
+    - name: pull_secret_name
+      type: string
+      default: rhai-pull-secret
+    - name: pull_secret_source_namespace
+      type: string
+      default: klape-llm-d-e2e
+    - name: runner_image
+      type: string
+      description: Runner image used by the e2e completion Job.
+    - name: namespace
+      type: string
+      default: klape-llm-d-e2e
+      description: Existing namespace shared by matrix legs; names are unique per TaskRun.
+  results:
+    - name: qualification-status
+      description: PASS, TEST_FAILURE, or INFRASTRUCTURE_FAILURE.
+  steps:
+    - name: run-burrito
+      image: $(params.runner_image)
+      env:
+        - name: VLLM_IMAGE
+          value: $(params.vllm_image)
+        - name: MODEL_URI
+          value: $(params.model)
+        - name: QUEUE_NAME
+          value: $(params.queue)
+        - name: PULL_SECRET_NAME
+          value: $(params.pull_secret_name)
+        - name: PULL_SECRET_SOURCE_NAMESPACE
+          value: $(params.pull_secret_source_namespace)
+        - name: RUNNER_IMAGE
+          value: $(params.runner_image)
+        - name: TARGET_NAMESPACE
+          value: $(params.namespace)
+        - name: TASK_RUN_NAME
+          value: $(context.taskRun.name)
+      script: |
+        #!/usr/bin/env bash
+        set -Eeuo pipefail
+
+        workdir="$(mktemp -d)"
+        service_file="$workdir/llmisvc.yaml"
+        input_file="$workdir/burrito-input.yaml"
+        log_file="$workdir/burrito.log"
+
+        service_name="${TASK_RUN_NAME}-llmisvc"
+        job_name="${TASK_RUN_NAME}-e2e"
+
+        python -m conformance.render \
+          --source tekton/manifests/single-gpu-smoke.yaml \
+          --destination "$service_file" \
+          --name "$service_name" \
+          --namespace "$TARGET_NAMESPACE" \
+          --model-uri "$MODEL_URI" \
+          --vllm-image "$VLLM_IMAGE"
+
+        python - "$MODEL_URI" "$RUNNER_IMAGE" "$service_name" "$job_name" "$TARGET_NAMESPACE" > "$workdir/e2e-input.yaml" <<'PY'
+        import json
+        import os
+        from pathlib import Path
+        import sys
+
+        template = Path("tekton/manifests/burrito-e2e-input.yaml").read_text()
+        template = template.replace("__MODEL_URI__", json.dumps(sys.argv[1]))
+        template = template.replace("__RUNNER_IMAGE__", json.dumps(sys.argv[2]))
+        template = template.replace("__SERVICE_NAME__", sys.argv[3])
+        template = template.replace("__JOB_NAME__", sys.argv[4])
+        template = template.replace("__NAMESPACE__", sys.argv[5])
+        print(template, end="")
+        PY
+
+        cat "$service_file" "$workdir/e2e-input.yaml" > "$input_file"
+
+        set +e
+        burrito run \
+          --stdin \
+          --name "$TASK_RUN_NAME" \
+          --run-id "$TASK_RUN_NAME" \
+          --namespace "$TARGET_NAMESPACE" \
+          --queue "$QUEUE_NAME" \
+          --image-pull-secret "$PULL_SECRET_NAME" \
+          --pull-secret-source-ns "$PULL_SECRET_SOURCE_NAMESPACE" \
+          --completion-trigger \
+          --completion-job-name "$job_name" \
+          < "$input_file" 2>&1 | tee "$log_file"
+        rc=${PIPESTATUS[0]}
+        set -e
+
+        if [ "$rc" -eq 0 ]; then
+          printf PASS > "$(results.qualification-status.path)"
+          exit 0
+        fi
+
+        if grep -q 'completion job .* failed' "$log_file"; then
+          printf TEST_FAILURE > "$(results.qualification-status.path)"
+        else
+          printf INFRASTRUCTURE_FAILURE > "$(results.qualification-status.path)"
+        fi
+        exit "$rc"

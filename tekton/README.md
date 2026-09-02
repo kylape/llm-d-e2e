@@ -3,6 +3,10 @@
 This directory contains the proof-of-concept Tekton pipeline for running the
 `smoke` profile against an existing RHAII installation.
 
+The original `pipeline.yaml` is the direct-deployment fallback. The
+`pipeline-matrix.yaml` variant runs each image/model leg through Burrito, which
+wraps the RHAII service and e2e Job in an AppWrapper for Kueue admission.
+
 ## Prerequisites
 
 Install Tekton Pipelines at a pinned version. For a PoC, install only the
@@ -28,7 +32,8 @@ account also needs access to the inference gateway service in
 The repository includes a separate image-build Pipeline. It builds
 `Dockerfile.tekton` from the personal fork and publishes the Red Hat UBI9
 Python 3.11-based runner image to Quay. The image includes Python dependencies,
-kubectl, the e2e suite, and the pinned smoke manifest.
+kubectl, Burrito built from the pinned personal fork revision, the e2e suite,
+and the pinned smoke manifest.
 
 Create a Quay repository and a registry Secret named
 `klape-tekton-pull-secret`. The
@@ -70,11 +75,29 @@ Run the example with:
 kubectl create -f pipelinerun.example.yaml
 ```
 
-The only PipelineRun parameters are:
+The direct-deployment PipelineRun parameters are:
 
 * `vllm_image` — an immutable vLLM image reference. It is assigned to
   `spec.template.containers[name=main].image`.
 * `model` — a model URI such as `hf://Qwen/Qwen3-0.6B`.
+
+## Burrito matrix pipeline
+
+The matrix example is currently intentionally small: it contains one known
+good RHAII 3.5 image/model pair. Add explicit entries to
+`pipeline-matrix.yaml` as compatibility pairs are approved. Tekton expands the
+matrix into one TaskRun per pair; the TaskRun invokes Burrito with a unique
+AppWrapper, Service, and completion Job name.
+
+Kueue controls GPU admission. Tekton only creates the matrix TaskRuns, so
+additional legs can remain pending in the LocalQueue until GPU quota is
+available. The target namespace is shared for this initial implementation and
+resource names are made unique from the TaskRun name.
+
+The Burrito path requires the target namespace to already contain
+`llm-d-e2e-runner`, `rhai-pull-secret`, and the AppWrapper permissions in
+`namespace-rbac.yaml`. It also requires the named LocalQueue and a compatible
+Kueue/AppWrapper installation.
 
 The cleanup Task publishes `qualification-status` as a Tekton Task result and
 writes the same value to the results workspace. Tekton does not permit a
