@@ -61,6 +61,14 @@ quay.io/klape/llm-d-e2e@sha256:<digest>
 The tag is only a bootstrap reference and should not be used for a shared or
 long-lived qualification environment.
 
+The runner Dockerfile builds Burrito from the temporary in-cluster Forgejo
+service at `forgejo.klape-llm-d-e2e.svc.cluster.local`. The repository is
+intentionally not exposed outside the cluster. Seed the Forgejo repository
+from the local Burrito checkout through a temporary port-forward, make the
+repository publicly readable within Forgejo, and keep push access restricted
+to the administrative account. This avoids placing a GitHub token in the
+cluster.
+
 ## Install the pipeline resources
 
 Apply `namespace-rbac.yaml`, the image-build resources, the three files under
