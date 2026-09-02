@@ -4,7 +4,7 @@ import pytest
 import yaml
 
 from conformance.deployer import Deployer
-from conformance.render import model_name_from_uri, render_manifest
+from conformance.render import _set_vllm_image, model_name_from_uri, render_manifest
 
 
 MANIFEST = Path(__file__).parents[1] / "../llm-d-conformance-manifests/single-gpu-smoke.yaml"
@@ -58,3 +58,24 @@ def test_real_vllm_image_override_preserves_entrypoint():
     assert container["image"] == "quay.io/example/vllm@sha256:abc"
     assert container["command"] == ["vllm"]
     assert container["args"] == ["serve"]
+
+
+def test_real_vllm_image_override_covers_prefill_and_worker_not_scheduler():
+    spec = {
+        "template": {"containers": [{"name": "main"}]},
+        "prefill": {"template": {"containers": [{"name": "main"}]}},
+        "worker": {"containers": [{"name": "main"}]},
+        "router": {
+            "scheduler": {
+                "template": {"containers": [{"name": "main"}, {"name": "tokenizer"}]}
+            }
+        },
+    }
+
+    _set_vllm_image(spec, "quay.io/example/vllm@sha256:abc")
+
+    assert spec["template"]["containers"][0]["image"].endswith("abc")
+    assert spec["prefill"]["template"]["containers"][0]["image"].endswith("abc")
+    assert spec["worker"]["containers"][0]["image"].endswith("abc")
+    assert "image" not in spec["router"]["scheduler"]["template"]["containers"][0]
+    assert "image" not in spec["router"]["scheduler"]["template"]["containers"][1]

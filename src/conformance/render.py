@@ -15,6 +15,29 @@ def model_name_from_uri(uri: str) -> str:
     return value.rstrip("/")
 
 
+def _serving_pod_specs(spec: dict):
+    """Yield explicit vLLM-serving PodSpecs, excluding router scheduler specs."""
+    template = spec.get("template")
+    if isinstance(template, dict):
+        yield template
+
+    prefill = spec.get("prefill")
+    if isinstance(prefill, dict) and isinstance(prefill.get("template"), dict):
+        yield prefill["template"]
+
+    worker = spec.get("worker")
+    if isinstance(worker, dict):
+        yield worker
+
+
+def _set_vllm_image(spec: dict, image: str) -> None:
+    """Set the image on every explicit serving container named ``main``."""
+    for serving_spec in _serving_pod_specs(spec):
+        for container in serving_spec.get("containers", []):
+            if container.get("name") == "main":
+                container["image"] = image
+
+
 def render_manifest(
     source: str | Path,
     destination: str | Path,
@@ -43,14 +66,21 @@ def render_manifest(
     model["uri"] = model_uri
     model["name"] = model_name_from_uri(model_uri)
 
-    template = spec.setdefault("template", {})
-    if pull_secret:
-        template["imagePullSecrets"] = [{"name": pull_secret}]
-    containers = template.setdefault("containers", [])
-    main = next((container for container in containers if container.get("name") == "main"), None)
-    if main is None:
-        raise ValueError("base manifest must contain spec.template.containers[name=main]")
-    main["image"] = vllm_image
+    serving_specs = list(_serving_pod_specs(spec))
+    if not serving_specs:
+        raise ValueError("base manifest must contain an explicit serving PodSpec")
+
+    found_main = False
+    for serving_spec in serving_specs:
+        if pull_secret:
+            serving_spec["imagePullSecrets"] = [{"name": pull_secret}]
+        found_main = found_main or any(
+            container.get("name") == "main" for container in serving_spec.get("containers", [])
+        )
+
+    if not found_main:
+        raise ValueError("base manifest must contain a serving container named main")
+    _set_vllm_image(spec, vllm_image)
 
     with open(destination, "w") as stream:
         yaml.safe_dump(manifest, stream, sort_keys=False)
