@@ -128,7 +128,7 @@ def main() -> None:
     parser.add_argument("--destination", required=True)
     parser.add_argument("--name", required=True)
     parser.add_argument("--namespace", required=True)
-    parser.add_argument("--model-uri", required=True)
+    parser.add_argument("--model-uri", default="")
     parser.add_argument("--vllm-image", required=True)
     parser.add_argument("--model-spec", default="")
     parser.add_argument("--pull-secret", default="rhai-pull-secret")
