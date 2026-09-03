@@ -75,9 +75,6 @@ def render_manifest(
     model_spec: str | None = None,
     pull_secret: str = "rhai-pull-secret",
 ) -> None:
-    if not all(value.strip() for value in (name, namespace, model_uri, vllm_image)):
-        raise ValueError("name, namespace, model_uri, and vllm_image are required")
-
     with open(source) as stream:
         manifest = yaml.safe_load(stream)
 
@@ -98,6 +95,8 @@ def render_manifest(
             raise ValueError("model_spec must contain a uri")
         model_uri = str(parsed_model_spec["uri"])
         _apply_model_spec(spec, parsed_model_spec)
+    if not all(value.strip() for value in (name, namespace, model_uri, vllm_image)):
+        raise ValueError("name, namespace, model_uri, and vllm_image are required")
     model = spec.setdefault("model", {})
     model["uri"] = model_uri
     model["name"] = model_name_from_uri(model_uri)
