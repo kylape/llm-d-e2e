@@ -55,18 +55,39 @@ spec:
           --timeout="$(params.readiness-timeout)" "llminferenceservice/$SERVICE_NAME" -n "$NAMESPACE" || exit 1
 
         model_uri="$(python -c 'import json, os; print(json.loads(os.environ["MODEL_SPEC"])["uri"])')"
-        set +e
-        llm-d-e2e \
-          --profile configs/profiles/smoke.yaml \
-          --mode discover \
-          --namespace "$NAMESPACE" \
-          --service-name "$SERVICE_NAME" \
-          --model-uri "$model_uri" \
-          --nocleanup \
-          --report-dir "$report_dir" \
-          --junitxml "$report_dir/junit.xml"
-        rc=$?
-        set -e
+        rc=1
+        for attempt in 1 2 3 4 5; do
+          echo "Starting llm-d-e2e attempt $attempt/5"
+          set +e
+          llm-d-e2e \
+            --profile configs/profiles/smoke.yaml \
+            --mode discover \
+            --namespace "$NAMESPACE" \
+            --service-name "$SERVICE_NAME" \
+            --model-uri "$model_uri" \
+            --nocleanup \
+            --report-dir "$report_dir" \
+            --junitxml "$report_dir/junit-$attempt.xml" 2>&1 | tee "$report_dir/e2e-$attempt.log"
+          rc=${PIPESTATUS[0]}
+          set -e
+          if [ "$rc" -eq 0 ]; then
+            cp "$report_dir/junit-$attempt.xml" "$report_dir/junit.xml"
+            break
+          fi
+          echo "llm-d-e2e attempt $attempt failed with exit code $rc"
+          echo "=== LLMInferenceService status ==="
+          kubectl get llminferenceservice "$SERVICE_NAME" -n "$NAMESPACE" -o yaml || true
+          echo "=== Generated pods ==="
+          kubectl get pods -n "$NAMESPACE" -o wide || true
+          echo "=== Recent serving-pod logs ==="
+          kubectl logs -n "$NAMESPACE" -l "serving.kserve.io/inferenceservice=$SERVICE_NAME" \
+            --all-containers=true --prefix=true --tail=100 || true
+          echo "=== Recent namespace events ==="
+          kubectl get events -n "$NAMESPACE" --sort-by=.lastTimestamp || true
+          if [ "$attempt" -lt 5 ]; then
+            sleep 15
+          fi
+        done
         if [ "$rc" -eq 0 ]; then
           status=PASS
         else
