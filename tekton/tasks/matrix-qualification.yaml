@@ -1,0 +1,78 @@
+apiVersion: tekton.dev/v1
+kind: Task
+metadata:
+  name: llm-d-e2e-matrix-leg
+spec:
+  params:
+    - name: runner_image
+      type: string
+    - name: vllm_image
+      type: string
+    - name: model_spec
+      type: string
+    - name: service-name
+      type: string
+    - name: namespace
+      type: string
+    - name: readiness-timeout
+      type: string
+      default: 30m
+  workspaces:
+    - name: results
+  results:
+    - name: test-status
+      description: PASS or TEST_FAILURE or INFRASTRUCTURE_FAILURE
+  steps:
+    - name: deploy-and-test
+      image: $(params.runner_image)
+      env:
+        - name: VLLM_IMAGE
+          value: $(params.vllm_image)
+        - name: MODEL_SPEC
+          value: $(params.model_spec)
+        - name: SERVICE_NAME
+          value: $(params.service-name)
+        - name: NAMESPACE
+          value: $(params.namespace)
+      script: |
+        #!/usr/bin/env bash
+        set -uo pipefail
+        report_dir="$(workspaces.results.path)/reports"
+        mkdir -p "$report_dir"
+        status=INFRASTRUCTURE_FAILURE
+        cleanup() {
+          kubectl delete llminferenceservice "$SERVICE_NAME" -n "$NAMESPACE" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+          printf "%s" "$status" > "$(results.test-status.path)"
+        }
+        trap cleanup EXIT
+
+        python -m conformance.render \
+          --source tekton/manifests/single-gpu-smoke.yaml \
+          --destination "$report_dir/llmisvc.yaml" \
+          --name "$SERVICE_NAME" \
+          --namespace "$NAMESPACE" \
+          --model-spec "$MODEL_SPEC" \
+          --vllm-image "$VLLM_IMAGE"
+        kubectl apply -f "$report_dir/llmisvc.yaml"
+        kubectl wait --for=condition=Ready=True \
+          --timeout="$(params.readiness-timeout)" "llminferenceservice/$SERVICE_NAME" -n "$NAMESPACE" || exit 1
+
+        model_uri="$(python -c 'import json, os; print(json.loads(os.environ["MODEL_SPEC"])["uri"])')"
+        set +e
+        llm-d-e2e \
+          --profile configs/profiles/smoke.yaml \
+          --mode discover \
+          --namespace "$NAMESPACE" \
+          --service-name "$SERVICE_NAME" \
+          --model-uri "$model_uri" \
+          --nocleanup \
+          --report-dir "$report_dir" \
+          --junitxml "$report_dir/junit.xml"
+        rc=$?
+        set -e
+        if [ "$rc" -eq 0 ]; then
+          status=PASS
+        else
+          status=TEST_FAILURE
+        fi
+        exit "$rc"
