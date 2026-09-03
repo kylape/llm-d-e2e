@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 
 import yaml
@@ -38,14 +39,40 @@ def _set_vllm_image(spec: dict, image: str) -> None:
                 container["image"] = image
 
 
+def _apply_model_spec(spec: dict, model_spec: dict) -> None:
+    """Apply resource and vLLM settings from a complete model specification."""
+    try:
+        gpu_count = int(model_spec.get("gpu_count", 1))
+        tensor_parallel_size = int(model_spec.get("tensor_parallel_size", 1))
+    except (TypeError, ValueError) as exc:
+        raise ValueError("model_spec GPU and tensor parallel values must be integers") from exc
+
+    if gpu_count < 1 or tensor_parallel_size < 1:
+        raise ValueError("model_spec GPU and tensor parallel values must be positive")
+
+    vllm_args = [str(value) for value in model_spec.get("vllm_args", [])]
+    for serving_spec in _serving_pod_specs(spec):
+        for container in serving_spec.get("containers", []):
+            if container.get("name") != "main":
+                continue
+            resources = container.setdefault("resources", {})
+            for resource_type in ("requests", "limits"):
+                resources.setdefault(resource_type, {})["nvidia.com/gpu"] = str(gpu_count)
+            args = [arg for arg in container.get("args", []) if "tensor-parallel-size" not in str(arg)]
+            args.extend(["--tensor-parallel-size", str(tensor_parallel_size)])
+            args.extend(vllm_args)
+            container["args"] = args
+
+
 def render_manifest(
     source: str | Path,
     destination: str | Path,
     *,
     name: str,
     namespace: str,
-    model_uri: str,
-    vllm_image: str,
+    model_uri: str = "",
+    vllm_image: str = "",
+    model_spec: str | None = None,
     pull_secret: str = "rhai-pull-secret",
 ) -> None:
     if not all(value.strip() for value in (name, namespace, model_uri, vllm_image)):
@@ -62,6 +89,15 @@ def render_manifest(
     metadata["namespace"] = namespace
 
     spec = manifest.setdefault("spec", {})
+    if model_spec:
+        try:
+            parsed_model_spec = json.loads(model_spec)
+        except json.JSONDecodeError as exc:
+            raise ValueError("model_spec must be valid JSON") from exc
+        if not isinstance(parsed_model_spec, dict) or not parsed_model_spec.get("uri"):
+            raise ValueError("model_spec must contain a uri")
+        model_uri = str(parsed_model_spec["uri"])
+        _apply_model_spec(spec, parsed_model_spec)
     model = spec.setdefault("model", {})
     model["uri"] = model_uri
     model["name"] = model_name_from_uri(model_uri)
@@ -94,6 +130,7 @@ def main() -> None:
     parser.add_argument("--namespace", required=True)
     parser.add_argument("--model-uri", required=True)
     parser.add_argument("--vllm-image", required=True)
+    parser.add_argument("--model-spec", default="")
     parser.add_argument("--pull-secret", default="rhai-pull-secret")
     args = parser.parse_args()
     render_manifest(**vars(args))
