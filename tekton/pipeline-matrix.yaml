@@ -1,25 +1,18 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: llm-d-e2e-burrito-matrix
+  name: llm-d-e2e-matrix
 spec:
-  description: Run the llm-d-e2e smoke profile for each explicit image/model pair.
+  description: Run each vLLM image and complete model specification combination.
   params:
     - name: runner_image
       type: string
-      description: Immutable runner image containing llm-d-e2e and Burrito.
-    - name: queue
-      type: string
-      default: klape-llm-d-e2e
-    - name: pull_secret_name
-      type: string
-      default: rhai-pull-secret
-    - name: pull_secret_source_namespace
-      type: string
-      default: klape-llm-d-e2e
+      description: Immutable runner image containing llm-d-e2e.
     - name: namespace
       type: string
       default: klape-llm-d-e2e
+  workspaces:
+    - name: results
   tasks:
     - name: qualify
       matrix:
@@ -27,19 +20,22 @@ spec:
           - name: vllm_image
             value:
               - quay.io/aipcc/rhaiis/cuda-ubi9:3.5
-          - name: model
+              - quay.io/aipcc/rhaiis/cuda-ubi9:3.6.0-fast.1
+          - name: model_spec
             value:
-              - hf://Qwen/Qwen3-0.6B
+              - '{"name":"qwen3-0.6b-single-gpu","uri":"hf://Qwen/Qwen3-0.6B","gpu_count":1,"tensor_parallel_size":1,"vllm_args":[]}'
+              - '{"name":"mixtral-8x7b-tp2","uri":"hf://mistralai/Mixtral-8x7B-Instruct-v0.1","gpu_count":2,"tensor_parallel_size":2,"vllm_args":[]}'
       taskRef:
-        name: llm-d-e2e-burrito-qualification
+        name: llm-d-e2e-matrix-leg
       params:
-        - name: queue
-          value: $(params.queue)
-        - name: pull_secret_name
-          value: $(params.pull_secret_name)
-        - name: pull_secret_source_namespace
-          value: $(params.pull_secret_source_namespace)
         - name: runner_image
           value: $(params.runner_image)
+        - name: vllm_image
+          value: $(params.vllm_image)
+        - name: model_spec
+          value: $(params.model_spec)
         - name: namespace
           value: $(params.namespace)
+      workspaces:
+        - name: results
+          workspace: results
