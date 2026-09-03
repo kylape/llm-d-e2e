@@ -30,10 +30,6 @@ spec:
       params:
         - name: runner_image
           value: $(params.runner_image)
-        - name: vllm_image
-          value: $(params.vllm_image)
-        - name: model_spec
-          value: $(params.model_spec)
         - name: namespace
           value: $(params.namespace)
       workspaces:
