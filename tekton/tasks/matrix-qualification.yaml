@@ -10,8 +10,6 @@ spec:
       type: string
     - name: model_spec
       type: string
-    - name: service-name
-      type: string
     - name: namespace
       type: string
     - name: readiness-timeout
@@ -30,14 +28,13 @@ spec:
           value: $(params.vllm_image)
         - name: MODEL_SPEC
           value: $(params.model_spec)
-        - name: SERVICE_NAME
-          value: $(params.service-name)
         - name: NAMESPACE
           value: $(params.namespace)
       script: |
         #!/usr/bin/env bash
         set -uo pipefail
         report_dir="$(workspaces.results.path)/reports"
+        SERVICE_NAME="$(context.taskRun.name)-llmisvc"
         mkdir -p "$report_dir"
         status=INFRASTRUCTURE_FAILURE
         cleanup() {
