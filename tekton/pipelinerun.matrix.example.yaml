@@ -8,7 +8,7 @@ spec:
     name: llm-d-e2e-matrix
   params:
     - name: runner_image
-      value: quay.io/klape/llm-d-e2e@sha256:d2faecc527637ea8562c1cc9c12b8ab428e434c0c1ca16ef81ce07e782b02cb3
+      value: quay.io/klape/llm-d-e2e@sha256:8eefa4349aeaf0b3ab35abc2259c91761e859fc895343fb6a8ddd17f636985e7
     - name: namespace
       value: klape-llm-d-e2e
   taskRunTemplate:
