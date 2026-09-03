@@ -1,19 +1,24 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-  generateName: llm-d-e2e-burrito-matrix-
+  generateName: llm-d-e2e-matrix-
   namespace: klape-llm-d-e2e
 spec:
   pipelineRef:
-    name: llm-d-e2e-burrito-matrix
+    name: llm-d-e2e-matrix
   params:
     - name: runner_image
       value: quay.io/klape/llm-d-e2e@sha256:bb96fe3cd40a6a68437ab6fb1f66ef05a3f690bb5ae5280e4bc208bbb0ba9675
-    - name: queue
-      value: klape-llm-d-e2e
-    - name: pull_secret_name
-      value: rhai-pull-secret
-    - name: pull_secret_source_namespace
+    - name: namespace
       value: klape-llm-d-e2e
   taskRunTemplate:
     serviceAccountName: llm-d-e2e-runner
+  workspaces:
+    - name: results
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
