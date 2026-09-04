@@ -33,7 +33,9 @@ spec:
       script: |
         #!/usr/bin/env bash
         set -uo pipefail
-        report_dir="$(workspaces.results.path)/reports"
+        leg_dir="$(workspaces.results.path)/$(context.taskRun.name)"
+        report_dir="$leg_dir/reports"
+        mkdir -p "$leg_dir"
         SERVICE_NAME="$(context.taskRun.name)-llmisvc"
         mkdir -p "$report_dir"
         status=INFRASTRUCTURE_FAILURE
