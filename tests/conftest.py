@@ -80,7 +80,9 @@ def pytest_generate_tests(metafunc):
         for case in cases:
             if model_uri:
                 case.model.uri = model_uri
-                case.model.name = model_name_from_uri(model_uri)
+                # The explicit model name identifies the served model variant.
+                # Keep deriving it from the URI only when no override was given.
+                case.model.name = model_name or model_name_from_uri(model_uri)
             elif model_name:
                 case.model.name = model_name
         metafunc.parametrize("tc", cases, ids=[tc.name for tc in cases], scope="class")
