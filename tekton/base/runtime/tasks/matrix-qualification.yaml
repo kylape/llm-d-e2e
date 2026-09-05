@@ -57,6 +57,7 @@ spec:
           --timeout="$(params.readiness-timeout)" "llminferenceservice/$SERVICE_NAME" -n "$NAMESPACE" || exit 1
 
         model_uri="$(python -c 'import json, os; print(json.loads(os.environ["MODEL_SPEC"])["uri"])')"
+        model_name="$(python -c 'import json, os; from conformance.render import model_name_for_variant; print(model_name_for_variant(json.loads(os.environ["MODEL_SPEC"])["uri"], os.environ["VLLM_IMAGE"]))')"
         rc=1
         for attempt in 1 2 3 4 5; do
           echo "Starting llm-d-e2e attempt $attempt/5"
@@ -67,6 +68,7 @@ spec:
             --namespace "$NAMESPACE" \
             --service-name "$SERVICE_NAME" \
             --model-uri "$model_uri" \
+            --model "$model_name" \
             --nocleanup \
             --report-dir "$report_dir" \
             --junitxml "$report_dir/junit-$attempt.xml" 2>&1 | tee "$report_dir/e2e-$attempt.log"

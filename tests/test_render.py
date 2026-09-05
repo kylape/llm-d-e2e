@@ -4,7 +4,12 @@ import pytest
 import yaml
 
 from conformance.deployer import Deployer
-from conformance.render import _set_vllm_image, model_name_from_uri, render_manifest
+from conformance.render import (
+    _set_vllm_image,
+    model_name_for_variant,
+    model_name_from_uri,
+    render_manifest,
+)
 
 
 MANIFEST = Path(__file__).parents[1] / "../llm-d-conformance-manifests/single-gpu-smoke.yaml"
@@ -13,6 +18,12 @@ MANIFEST = Path(__file__).parents[1] / "../llm-d-conformance-manifests/single-gp
 def test_model_name_from_uri():
     assert model_name_from_uri("hf://Qwen/Qwen3-0.6B") == "Qwen/Qwen3-0.6B"
     assert model_name_from_uri("Qwen/Qwen3-0.6B") == "Qwen/Qwen3-0.6B"
+
+
+def test_model_name_for_variant():
+    assert model_name_for_variant(
+        "hf://Qwen/Qwen3-0.6B", "quay.io/aipcc/rhaiis/cuda-ubi9:3.6.0-fast.1"
+    ) == "Qwen/Qwen3-0.6B--cuda-ubi9-3-6-0-fast-1"
 
 
 def test_render_manifest_updates_only_run_fields(tmp_path):

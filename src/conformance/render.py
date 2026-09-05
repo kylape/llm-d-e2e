@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 from pathlib import Path
 
 import yaml
@@ -14,6 +15,17 @@ def model_name_from_uri(uri: str) -> str:
     if "://" in value:
         value = value.split("://", 1)[1]
     return value.rstrip("/")
+
+
+def model_name_for_variant(uri: str, vllm_image: str) -> str:
+    """Return a gateway-safe model identity unique to a vLLM image variant."""
+    image_ref = vllm_image.rsplit("/", 1)[-1]
+    if "@" in image_ref:
+        image_ref = image_ref.split("@", 1)[0]
+    variant = re.sub(r"[^A-Za-z0-9]+", "-", image_ref).strip("-").lower()
+    if not variant:
+        raise ValueError("vllm_image must contain a usable variant")
+    return f"{model_name_from_uri(uri)}--{variant}"
 
 
 def _serving_pod_specs(spec: dict):
@@ -86,6 +98,7 @@ def render_manifest(
     metadata["namespace"] = namespace
 
     spec = manifest.setdefault("spec", {})
+    parsed_model_spec = None
     if model_spec:
         try:
             parsed_model_spec = json.loads(model_spec)
@@ -99,7 +112,10 @@ def render_manifest(
         raise ValueError("name, namespace, model_uri, and vllm_image are required")
     model = spec.setdefault("model", {})
     model["uri"] = model_uri
-    model["name"] = model_name_from_uri(model_uri)
+    if parsed_model_spec:
+        model["name"] = model_name_for_variant(model_uri, vllm_image)
+    else:
+        model["name"] = model_name_from_uri(model_uri)
 
     serving_specs = list(_serving_pod_specs(spec))
     if not serving_specs:
