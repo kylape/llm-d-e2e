@@ -25,7 +25,7 @@ Before installing the resources in this directory, verify that the
 
 The `klape-llm-d-e2e` namespace must contain `rhai-pull-secret`. The pipeline service
 account also needs access to the inference gateway service in
-`redhat-ods-applications`, as described in `namespace-rbac.yaml`.
+`redhat-ods-applications`, as described in `base/rbac/namespace-rbac.yaml`.
 
 ## Runner image build
 
@@ -38,9 +38,9 @@ and the pinned smoke manifest.
 Create a Quay repository and a registry Secret named
 `klape-tekton-pull-secret`. The
 Secret must contain a `.dockerconfigjson` key and must not be committed to Git.
-For a manual run, install `image-build-rbac.yaml`,
-`image-build-task.yaml`, and `image-build-pipeline.yaml`, then adapt
-`image-build-pipelinerun.example.yaml` with the actual Quay namespace. The
+For a manual run, install the `components/image-build/` Kustomize component,
+then adapt `examples/image-build-pipelinerun.example.yaml` with the actual
+Quay namespace. The
 example builds:
 
 ```text
@@ -69,13 +69,43 @@ repository publicly readable within Forgejo, and keep push access restricted
 to the administrative account. This avoids placing a GitHub token in the
 cluster.
 
-## Install the pipeline resources
+## Layout and installation
 
-Apply `namespace-rbac.yaml`, the image-build resources, the three files under
-`tasks/`, and `pipeline.yaml`. These manifests create cluster and namespace
-resources, so review them and obtain explicit approval before running any
-mutating `kubectl` command. Build the runner image before creating a
-qualification PipelineRun.
+The manifests are organized as Kustomize bases, overlays, and opt-in
+components:
+
+* `base/` contains the reusable runtime RBAC, Tasks, and Pipelines.
+* `overlays/klape-llm-d-e2e/` selects the namespace-specific runtime setup.
+* `components/image-build/` contains the optional runner-image build resources.
+* `components/forgejo/` contains the optional in-cluster Forgejo server.
+* `components/kueue/` contains the optional Burrito Task and Kueue queue.
+* `examples/` contains PipelineRun examples and is never included by a
+  Kustomize build.
+* `manifests/` contains input manifests consumed by the Tasks.
+
+The default runtime installation is rendered and applied from the Tekton
+directory:
+
+```bash
+kubectl kustomize tekton
+kubectl apply -k tekton
+```
+
+The Kustomize overlay applies the namespace only to the runtime Tasks and
+Pipelines. The gateway-access Role and RoleBinding remain in
+`redhat-ods-applications`.
+
+Optional components are applied separately after review:
+
+```bash
+kubectl apply -k tekton/components/image-build
+kubectl apply -k tekton/components/forgejo
+kubectl apply -k tekton/components/kueue
+```
+
+These manifests create cluster and namespace resources, so review them and
+obtain explicit approval before running any mutating `kubectl` command. Build
+the runner image before creating a qualification PipelineRun.
 
 Run the example with:
 
@@ -93,7 +123,7 @@ The direct-deployment PipelineRun parameters are:
 
 The matrix example is currently intentionally small: it contains one known
 good RHAII 3.5 image/model pair. Add explicit entries to
-`pipeline-matrix.yaml` as compatibility pairs are approved. Tekton expands the
+`base/pipeline-matrix.yaml` as compatibility pairs are approved. Tekton expands the
 matrix into one TaskRun per pair; the TaskRun invokes Burrito with a unique
 AppWrapper, Service, and completion Job name.
 
@@ -108,12 +138,12 @@ Job while preserving the result PVC for report inspection.
 
 The Burrito path requires the target namespace to already contain
 `llm-d-e2e-runner`, `rhai-pull-secret`, and the AppWrapper permissions in
-`namespace-rbac.yaml`. It also requires the named LocalQueue and a compatible
+`base/namespace-rbac.yaml`. It also requires the named LocalQueue and a compatible
 Kueue/AppWrapper installation.
 
 ## Fozzie queue
 
-`kueue/fozzie-queue.yaml` defines a deliberately namespace-scoped queue for
+`components/kueue/fozzie-queue.yaml` defines a deliberately namespace-scoped queue for
 this PoC. It accounts for `nvidia.com/gpu` rather than the unrelated
 `benchflow.io/remote-gpu` resource used by the existing `local` queue. The
 initial quota is four GPUs, so four one-GPU legs may be admitted concurrently;
