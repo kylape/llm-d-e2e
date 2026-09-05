@@ -12,6 +12,9 @@ spec:
       type: string
     - name: namespace
       type: string
+    - name: cleanup_on_failure
+      type: string
+      default: "true"
     - name: readiness-timeout
       type: string
       default: 30m
@@ -30,6 +33,8 @@ spec:
           value: $(params.model_spec)
         - name: NAMESPACE
           value: $(params.namespace)
+        - name: CLEANUP_ON_FAILURE
+          value: $(params.cleanup_on_failure)
       script: |
         #!/usr/bin/env bash
         set -uo pipefail
@@ -40,7 +45,12 @@ spec:
         mkdir -p "$report_dir"
         status=INFRASTRUCTURE_FAILURE
         cleanup() {
-          kubectl delete llminferenceservice "$SERVICE_NAME" -n "$NAMESPACE" --ignore-not-found --wait=false >/dev/null 2>&1 || true
+          if [ "$status" = "PASS" ] || [ "$CLEANUP_ON_FAILURE" = "true" ]; then
+            kubectl delete llminferenceservice "$SERVICE_NAME" -n "$NAMESPACE" \
+              --ignore-not-found --wait=false >/dev/null 2>&1 || true
+          else
+            echo "Preserving $SERVICE_NAME for failure investigation"
+          fi
           printf "%s" "$status" > "$(results.test-status.path)"
         }
         trap cleanup EXIT
