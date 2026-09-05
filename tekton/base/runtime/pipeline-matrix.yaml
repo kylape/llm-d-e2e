@@ -11,10 +11,10 @@ spec:
     - name: namespace
       type: string
       default: klape-llm-d-e2e
-    - name: cleanup_on_failure
+    - name: retain_on_failure
       type: string
-      default: "true"
-      description: Delete failed-leg workloads when true; preserve them when false.
+      default: "false"
+      description: Preserve failed-leg workloads when true.
   workspaces:
     - name: results
   tasks:
@@ -36,8 +36,8 @@ spec:
           value: $(params.runner_image)
         - name: namespace
           value: $(params.namespace)
-        - name: cleanup_on_failure
-          value: $(params.cleanup_on_failure)
+        - name: retain_on_failure
+          value: $(params.retain_on_failure)
       workspaces:
         - name: results
           workspace: results
