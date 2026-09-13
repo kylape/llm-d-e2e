@@ -113,8 +113,9 @@ the normal Kustomization is intended for the guest runtime setup.
 The bootstrap pipeline runs entirely in host Tekton. It creates external etcd
 and a vCluster in the host namespace, generates a guest kubeconfig, configures
 guest CoreDNS for OpenShift compatibility, installs the RHAII OCI chart, and
-runs the existing smoke CLI against the guest cluster. It retains the vCluster
-by default; set `delete-vcluster` to `"true"` for an explicitly ephemeral run.
+publishes the guest kubeconfig as a Secret for a later e2e PipelineRun. It
+retains the vCluster by default; set `delete-vcluster` to `"true"` for an
+explicitly ephemeral run.
 
 Install the bootstrap resources only after reviewing them:
 
@@ -122,14 +123,19 @@ Install the bootstrap resources only after reviewing them:
 kubectl apply -k tekton/bootstrap
 ```
 
-The example PipelineRun is intentionally not included by Kustomize. Replace
-the example runner and vLLM image references with immutable images, make a
-`rhai-pull-secret` Secret available in `llm-d-e2e-bootstrap`, and create the
-example only after explicit approval:
+The bootstrap example PipelineRun is intentionally not included by Kustomize.
+Make a `rhai-pull-secret` Secret available in `llm-d-e2e-bootstrap`, and create
+the bootstrap example only after explicit approval:
 
 ```bash
 kubectl create -f tekton/bootstrap/pipelinerun.example.yaml
 ```
+
+After bootstrap succeeds, run the existing smoke pipeline against the guest
+with `examples/pipelinerun-vcluster.example.yaml`. It binds the kubeconfig
+Secret published by bootstrap. The ordinary `examples/pipelinerun.example.yaml`
+continues to target the local/in-cluster kubeconfig when the optional workspace
+is not bound.
 
 The design and ownership details are documented in
 `scratchpad/proposals/llm-d-e2e-host-bootstrap/design.md` in the workspace.
