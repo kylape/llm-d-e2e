@@ -20,9 +20,6 @@ spec:
     - name: vcluster-version
       type: string
       default: 0.36.1
-    - name: etcd-chart-version
-      type: string
-      default: ""
     - name: etcd-image-repository
       type: string
       default: etcd
@@ -74,8 +71,6 @@ spec:
             type: string
           - name: vcluster-version
             type: string
-          - name: etcd-chart-version
-            type: string
           - name: etcd-image-repository
             type: string
           - name: etcd-image-registry
@@ -93,7 +88,7 @@ spec:
             script: |
               #!/bin/sh
               set -eu
-              apk add --no-cache bash ca-certificates curl jq
+              apk add --no-cache bash ca-certificates curl
               curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
                 -o /usr/local/bin/kubectl
               chmod +x /usr/local/bin/kubectl
@@ -104,25 +99,8 @@ spec:
 
               HOST_NS="$(params.host-namespace)"
               NAME="$(params.vcluster-name)"
-              ETCD_RELEASE="${NAME}-etcd"
-              helm repo add bitnami https://charts.bitnami.com/bitnami
               helm repo add loft https://charts.loft.sh
               helm repo update
-
-              ETCD_ARGS=""
-              if [ -n "$(params.etcd-chart-version)" ]; then
-                ETCD_ARGS="--version $(params.etcd-chart-version)"
-              fi
-              # The external etcd keeps vCluster state independent from the
-              # vCluster control-plane pod lifecycle.
-              helm upgrade --install "$ETCD_RELEASE" bitnami/etcd \
-                --namespace "$HOST_NS" --create-namespace $ETCD_ARGS \
-                --set replicaCount=1 \
-                --set auth.rbac.create=false \
-                --set auth.client.secureTransport=false \
-                --set image.registry="$(params.etcd-image-registry)" \
-                --set image.repository="$(params.etcd-image-repository)" \
-                --set image.tag="$(params.etcd-image-tag)"
 
               helm upgrade --install "$NAME" loft/vcluster \
                 --namespace "$HOST_NS" --create-namespace \
@@ -134,8 +112,11 @@ spec:
                 --set sync.toHost.gatewayApi.gateways.enabled=true \
                 --set controlPlane.distro.k8s.scheduler.enabled=false \
                 --set controlPlane.service.spec.type=ClusterIP \
-                --set controlPlane.backingStore.etcd.external.enabled=true \
-                --set controlPlane.backingStore.etcd.external.endpoint="${ETCD_RELEASE}:2379"
+                --set controlPlane.backingStore.etcd.deploy.enabled=true \
+                --set controlPlane.backingStore.etcd.deploy.statefulSet.enabled=true \
+                --set controlPlane.backingStore.etcd.deploy.statefulSet.image.registry="$(params.etcd-image-registry)" \
+                --set controlPlane.backingStore.etcd.deploy.statefulSet.image.repository="$(params.etcd-image-repository)" \
+                --set controlPlane.backingStore.etcd.deploy.statefulSet.image.tag="$(params.etcd-image-tag)"
 
               kubectl wait --for=condition=Available \
                 "deployment/${NAME}" --namespace "$HOST_NS" --timeout=10m
@@ -150,8 +131,6 @@ spec:
           value: $(params.vcluster-name)
         - name: vcluster-version
           value: $(params.vcluster-version)
-        - name: etcd-chart-version
-          value: $(params.etcd-chart-version)
         - name: etcd-image-repository
           value: $(params.etcd-image-repository)
         - name: etcd-image-registry
@@ -370,8 +349,6 @@ spec:
                 exit 0
               fi
               helm uninstall "$(params.vcluster-name)" \
-                --namespace "$(params.host-namespace)" || true
-              helm uninstall "$(params.vcluster-name)-etcd" \
                 --namespace "$(params.host-namespace)" || true
               kubectl delete secret "$(params.kubeconfig-secret-name)" \
                 --namespace "$(params.kubeconfig-secret-namespace)" \
