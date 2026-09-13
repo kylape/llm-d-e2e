@@ -1,0 +1,358 @@
+apiVersion: tekton.dev/v1
+kind: Pipeline
+metadata:
+  name: llm-d-e2e-host-bootstrap
+  namespace: llm-d-e2e-bootstrap
+  labels:
+    app.kubernetes.io/name: llm-d-e2e
+    app.kubernetes.io/component: host-bootstrap
+spec:
+  description: >-
+    Provision a vCluster on the host cluster, install RHAII in the guest,
+    and run the llm-d-e2e smoke suite from host Tekton.
+  params:
+    - name: host-namespace
+      type: string
+      default: llm-d-vcluster
+    - name: vcluster-name
+      type: string
+      default: llm-d-vcluster
+    - name: vcluster-version
+      type: string
+      default: 0.36.1
+    - name: etcd-chart-version
+      type: string
+      default: ""
+    - name: rhaii-chart
+      type: string
+      description: RHAII OCI chart without the oci:// prefix.
+    - name: rhaii-namespace
+      type: string
+      default: redhat-ods-operator
+    - name: rhaii-pull-secret-name
+      type: string
+      default: rhai-pull-secret
+    - name: guest-namespace
+      type: string
+      default: klape-llm-d-e2e
+    - name: runner-image
+      type: string
+      description: Immutable image containing the llm-d-e2e CLI.
+    - name: vllm-image
+      type: string
+    - name: model-uri
+      type: string
+      default: hf://Qwen/Qwen3-0.6B
+    - name: profile
+      type: string
+      default: configs/profiles/smoke.yaml
+    - name: delete-vcluster
+      type: string
+      default: "false"
+  workspaces:
+    - name: guest-kubeconfig
+      description: Generated kubeconfig for the vCluster guest.
+    - name: registry-auth
+      description: Secret workspace containing a .dockerconfigjson file.
+    - name: results
+      description: Test reports and diagnostics.
+  tasks:
+    - name: create-vcluster
+      taskSpec:
+        params:
+          - name: host-namespace
+            type: string
+          - name: vcluster-name
+            type: string
+          - name: vcluster-version
+            type: string
+          - name: etcd-chart-version
+            type: string
+        workspaces:
+          - name: guest-kubeconfig
+        steps:
+          - name: provision
+            image: alpine/helm:3.16.4
+            env:
+              - name: HOME
+                value: /tekton/home
+            script: |
+              #!/bin/sh
+              set -eu
+              apk add --no-cache bash ca-certificates curl jq
+              curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
+                -o /usr/local/bin/kubectl
+              chmod +x /usr/local/bin/kubectl
+              curl -fsSL \
+                "https://github.com/loft-sh/vcluster/releases/download/v$(params.vcluster-version)/vcluster-linux-amd64" \
+                -o /usr/local/bin/vcluster
+              chmod +x /usr/local/bin/vcluster
+
+              HOST_NS="$(params.host-namespace)"
+              NAME="$(params.vcluster-name)"
+              ETCD_RELEASE="${NAME}-etcd"
+              helm repo add bitnami https://charts.bitnami.com/bitnami
+              helm repo add loft https://charts.loft.sh
+              helm repo update
+
+              ETCD_ARGS=""
+              if [ -n "$(params.etcd-chart-version)" ]; then
+                ETCD_ARGS="--version $(params.etcd-chart-version)"
+              fi
+              # The external etcd keeps vCluster state independent from the
+              # vCluster control-plane pod lifecycle.
+              helm upgrade --install "$ETCD_RELEASE" bitnami/etcd \
+                --namespace "$HOST_NS" --create-namespace $ETCD_ARGS \
+                --set replicaCount=1 \
+                --set auth.rbac.create=false \
+                --set auth.client.secureTransport=false
+
+              helm upgrade --install "$NAME" loft/vcluster \
+                --namespace "$HOST_NS" --create-namespace \
+                --version "$(params.vcluster-version)" \
+                --set sync.fromHost.nodes.enabled=true \
+                --set sync.toHost.pods.enabled=true \
+                --set sync.toHost.gatewayApi.enabled=true \
+                --set sync.toHost.gatewayApi.httpRoutes.enabled=true \
+                --set sync.toHost.gatewayApi.gateways.enabled=true \
+                --set controlPlane.distro.k8s.scheduler.enabled=false \
+                --set controlPlane.service.spec.type=ClusterIP \
+                --set controlPlane.backingStore.etcd.external.enabled=true \
+                --set controlPlane.backingStore.etcd.external.endpoint="${ETCD_RELEASE}:2379"
+
+              kubectl wait --for=condition=Available \
+                "deployment/${NAME}" --namespace "$HOST_NS" --timeout=10m
+              vcluster connect "$NAME" --namespace "$HOST_NS" \
+                --server "https://${NAME}.${HOST_NS}.svc.cluster.local:443" \
+                --print > "$(workspaces.guest-kubeconfig.path)/config"
+              chmod 600 "$(workspaces.guest-kubeconfig.path)/config"
+      params:
+        - name: host-namespace
+          value: $(params.host-namespace)
+        - name: vcluster-name
+          value: $(params.vcluster-name)
+        - name: vcluster-version
+          value: $(params.vcluster-version)
+        - name: etcd-chart-version
+          value: $(params.etcd-chart-version)
+      workspaces:
+        - name: guest-kubeconfig
+          workspace: guest-kubeconfig
+
+    - name: configure-vcluster
+      runAfter: [create-vcluster]
+      taskSpec:
+        workspaces:
+          - name: guest-kubeconfig
+        steps:
+          - name: configure
+            image: alpine/helm:3.16.4
+            script: |
+              #!/bin/sh
+              set -eu
+              apk add --no-cache ca-certificates curl
+              curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
+                -o /usr/local/bin/kubectl
+              chmod +x /usr/local/bin/kubectl
+              KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
+              kubectl --kubeconfig "$KUBECONFIG" wait --for=condition=Ready \
+                node --all --timeout=10m
+              kubectl --kubeconfig "$KUBECONFIG" -n kube-system wait \
+                --for=condition=Available deployment/coredns --timeout=10m
+              kubectl --kubeconfig "$KUBECONFIG" -n kube-system patch \
+                deployment/coredns --type=merge \
+                --patch '{"spec":{"template":{"spec":{"hostUsers":false}}}}'
+              kubectl --kubeconfig "$KUBECONFIG" -n kube-system rollout status \
+                deployment/coredns --timeout=10m
+      workspaces:
+        - name: guest-kubeconfig
+          workspace: guest-kubeconfig
+
+    - name: prepare-guest
+      runAfter: [configure-vcluster]
+      taskSpec:
+        params:
+          - name: guest-namespace
+            type: string
+          - name: pull-secret-name
+            type: string
+        workspaces:
+          - name: guest-kubeconfig
+          - name: registry-auth
+        steps:
+          - name: namespace-and-secret
+            image: alpine/helm:3.16.4
+            script: |
+              #!/bin/sh
+              set -eu
+              apk add --no-cache ca-certificates curl
+              curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
+                -o /usr/local/bin/kubectl
+              chmod +x /usr/local/bin/kubectl
+              KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
+              kubectl --kubeconfig "$KUBECONFIG" create namespace \
+                "$(params.guest-namespace)" --dry-run=client -o yaml | \
+                kubectl --kubeconfig "$KUBECONFIG" apply -f -
+              kubectl --kubeconfig "$KUBECONFIG" -n "$(params.guest-namespace)" \
+                create secret generic "$(params.pull-secret-name)" \
+                --from-file=.dockerconfigjson="$(workspaces.registry-auth.path)/.dockerconfigjson" \
+                --type=kubernetes.io/dockerconfigjson --dry-run=client -o yaml | \
+                kubectl --kubeconfig "$KUBECONFIG" apply -f -
+      params:
+        - name: guest-namespace
+          value: $(params.guest-namespace)
+        - name: pull-secret-name
+          value: $(params.rhaii-pull-secret-name)
+      workspaces:
+        - name: guest-kubeconfig
+          workspace: guest-kubeconfig
+        - name: registry-auth
+          workspace: registry-auth
+
+    - name: install-rhaii
+      runAfter: [prepare-guest]
+      taskSpec:
+        params:
+          - name: rhaii-chart
+            type: string
+          - name: rhaii-namespace
+            type: string
+        workspaces:
+          - name: guest-kubeconfig
+          - name: registry-auth
+        steps:
+          - name: install
+            image: alpine/helm:3.16.4
+            script: |
+              #!/bin/sh
+              set -eu
+              KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
+              AUTH="$(workspaces.registry-auth.path)/.dockerconfigjson"
+              export HELM_REGISTRY_CONFIG="$AUTH"
+              cat > /tmp/rhaii-values.yaml <<'EOF'
+              azure:
+                enabled: false
+              coreweave:
+                enabled: true
+              components:
+                kserve:
+                  gateway:
+                    allowedRoutes:
+                      namespaces:
+                        from: Same
+              EOF
+              helm upgrade --install rhaii "oci://$(params.rhaii-chart)" \
+                --namespace "$(params.rhaii-namespace)" --create-namespace \
+                --kubeconfig "$KUBECONFIG" --values /tmp/rhaii-values.yaml \
+                --set-file imagePullSecret.dockerConfigJson="$AUTH" \
+                --wait --timeout=30m
+      params:
+        - name: rhaii-chart
+          value: $(params.rhaii-chart)
+        - name: rhaii-namespace
+          value: $(params.rhaii-namespace)
+      workspaces:
+        - name: guest-kubeconfig
+          workspace: guest-kubeconfig
+        - name: registry-auth
+          workspace: registry-auth
+
+    - name: run-e2e
+      runAfter: [install-rhaii]
+      taskSpec:
+        params:
+          - name: runner-image
+            type: string
+          - name: vllm-image
+            type: string
+          - name: model-uri
+            type: string
+          - name: profile
+            type: string
+          - name: guest-namespace
+            type: string
+          - name: pull-secret-name
+            type: string
+          - name: service-name
+            type: string
+        workspaces:
+          - name: guest-kubeconfig
+          - name: results
+        steps:
+          - name: test
+            image: $(params.runner-image)
+            env:
+              - name: KUBECONFIG
+                value: $(workspaces.guest-kubeconfig.path)/config
+            script: |
+              #!/usr/bin/env bash
+              set -uo pipefail
+              mkdir -p "$(workspaces.results.path)"
+              set +e
+              llm-d-e2e \
+                --profile "$(params.profile)" \
+                --mode deploy \
+                --namespace "$(params.guest-namespace)" \
+                --service-name "$(params.service-name)" \
+                --model-uri "$(params.model-uri)" \
+                --vllm-image "$(params.vllm-image)" \
+                --pull-secret "$(params.pull-secret-name)" \
+                --junitxml "$(workspaces.results.path)/junit.xml"
+              rc=$?
+              if [ "$rc" -ne 0 ]; then
+                kubectl --kubeconfig "$KUBECONFIG" -n "$(params.guest-namespace)" \
+                  get pods,events,llminferenceservices -o wide \
+                  > "$(workspaces.results.path)/guest-diagnostics.txt" 2>&1 || true
+              fi
+              exit "$rc"
+      params:
+        - name: runner-image
+          value: $(params.runner-image)
+        - name: vllm-image
+          value: $(params.vllm-image)
+        - name: model-uri
+          value: $(params.model-uri)
+        - name: profile
+          value: $(params.profile)
+        - name: guest-namespace
+          value: $(params.guest-namespace)
+        - name: pull-secret-name
+          value: $(params.rhaii-pull-secret-name)
+        - name: service-name
+          value: $(context.pipelineRun.name)-llmisvc
+      workspaces:
+        - name: guest-kubeconfig
+          workspace: guest-kubeconfig
+        - name: results
+          workspace: results
+  finally:
+    - name: destroy-vcluster
+      taskSpec:
+        params:
+          - name: host-namespace
+            type: string
+          - name: vcluster-name
+            type: string
+          - name: delete-vcluster
+            type: string
+        steps:
+          - name: destroy
+            image: alpine/helm:3.16.4
+            script: |
+              #!/bin/sh
+              set -eu
+              if [ "$(params.delete-vcluster)" != "true" ]; then
+                echo "delete-vcluster is false; retaining the host resources"
+                exit 0
+              fi
+              helm uninstall "$(params.vcluster-name)" \
+                --namespace "$(params.host-namespace)" || true
+              helm uninstall "$(params.vcluster-name)-etcd" \
+                --namespace "$(params.host-namespace)" || true
+      params:
+        - name: host-namespace
+          value: $(params.host-namespace)
+        - name: vcluster-name
+          value: $(params.vcluster-name)
+        - name: delete-vcluster
+          value: $(params.delete-vcluster)
