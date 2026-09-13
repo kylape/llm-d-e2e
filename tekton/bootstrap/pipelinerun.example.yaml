@@ -34,11 +34,3 @@ spec:
           resources:
             requests:
               storage: 1Gi
-    - name: registry-auth
-      volumeClaimTemplate:
-        spec:
-          accessModes:
-            - ReadWriteOnce
-          resources:
-            requests:
-              storage: 1Gi
