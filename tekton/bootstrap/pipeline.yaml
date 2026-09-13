@@ -59,8 +59,6 @@ spec:
   workspaces:
     - name: guest-kubeconfig
       description: Generated kubeconfig for the vCluster guest.
-    - name: registry-auth
-      description: Secret workspace containing a .dockerconfigjson file.
   tasks:
     - name: create-vcluster
       taskSpec:
@@ -142,7 +140,7 @@ spec:
           workspace: guest-kubeconfig
 
     - name: configure-vcluster
-      runAfter: [create-vcluster, load-registry-auth]
+      runAfter: [create-vcluster]
       taskSpec:
         workspaces:
           - name: guest-kubeconfig
@@ -170,40 +168,6 @@ spec:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
 
-    - name: load-registry-auth
-      runAfter: [create-vcluster]
-      taskSpec:
-        params:
-          - name: secret-name
-            type: string
-          - name: secret-namespace
-            type: string
-        workspaces:
-          - name: registry-auth
-        steps:
-          - name: load
-            image: alpine/helm:3.16.4
-            script: |
-              #!/bin/sh
-              set -eu
-              apk add --no-cache ca-certificates curl
-              curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
-                -o /usr/local/bin/kubectl
-              chmod +x /usr/local/bin/kubectl
-              kubectl get secret "$(params.secret-name)" \
-                --namespace "$(params.secret-namespace)" \
-                -o jsonpath='{.data.\.dockerconfigjson}' | \
-                base64 -d > "$(workspaces.registry-auth.path)/.dockerconfigjson"
-              test -s "$(workspaces.registry-auth.path)/.dockerconfigjson"
-      params:
-        - name: secret-name
-          value: $(params.registry-auth-secret-name)
-        - name: secret-namespace
-          value: $(params.registry-auth-secret-namespace)
-      workspaces:
-        - name: registry-auth
-          workspace: registry-auth
-
     - name: prepare-guest
       runAfter: [configure-vcluster]
       taskSpec:
@@ -212,9 +176,12 @@ spec:
             type: string
           - name: pull-secret-name
             type: string
+          - name: registry-auth-secret-name
+            type: string
+          - name: registry-auth-secret-namespace
+            type: string
         workspaces:
           - name: guest-kubeconfig
-          - name: registry-auth
         steps:
           - name: namespace-and-secret
             image: alpine/helm:3.16.4
@@ -225,13 +192,17 @@ spec:
               curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
                 -o /usr/local/bin/kubectl
               chmod +x /usr/local/bin/kubectl
+              kubectl get secret "$(params.registry-auth-secret-name)" \
+                --namespace "$(params.registry-auth-secret-namespace)" \
+                -o jsonpath='{.data.\.dockerconfigjson}' | \
+                base64 -d > /tmp/rhai-pull-secret.json
               KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
               kubectl --kubeconfig "$KUBECONFIG" create namespace \
                 "$(params.guest-namespace)" --dry-run=client -o yaml | \
                 kubectl --kubeconfig "$KUBECONFIG" apply -f -
               kubectl --kubeconfig "$KUBECONFIG" -n "$(params.guest-namespace)" \
                 create secret generic "$(params.pull-secret-name)" \
-                --from-file=.dockerconfigjson="$(workspaces.registry-auth.path)/.dockerconfigjson" \
+                --from-file=.dockerconfigjson=/tmp/rhai-pull-secret.json \
                 --type=kubernetes.io/dockerconfigjson --dry-run=client -o yaml | \
                 kubectl --kubeconfig "$KUBECONFIG" apply -f -
       params:
@@ -239,10 +210,13 @@ spec:
           value: $(params.guest-namespace)
         - name: pull-secret-name
           value: $(params.rhaii-pull-secret-name)
+        - name: registry-auth-secret-name
+          value: $(params.registry-auth-secret-name)
+        - name: registry-auth-secret-namespace
+          value: $(params.registry-auth-secret-namespace)
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
-        - name: registry-auth
           workspace: registry-auth
 
     - name: install-rhaii
@@ -253,9 +227,12 @@ spec:
             type: string
           - name: rhaii-namespace
             type: string
+          - name: registry-auth-secret-name
+            type: string
+          - name: registry-auth-secret-namespace
+            type: string
         workspaces:
           - name: guest-kubeconfig
-          - name: registry-auth
         steps:
           - name: install
             image: alpine/helm:3.16.4
@@ -263,7 +240,15 @@ spec:
               #!/bin/sh
               set -eu
               KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
-              AUTH="$(workspaces.registry-auth.path)/.dockerconfigjson"
+              apk add --no-cache ca-certificates curl
+              curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
+                -o /usr/local/bin/kubectl
+              chmod +x /usr/local/bin/kubectl
+              kubectl get secret "$(params.registry-auth-secret-name)" \
+                --namespace "$(params.registry-auth-secret-namespace)" \
+                -o jsonpath='{.data.\.dockerconfigjson}' | \
+                base64 -d > /tmp/rhai-pull-secret.json
+              AUTH=/tmp/rhai-pull-secret.json
               export HELM_REGISTRY_CONFIG="$AUTH"
               cat > /tmp/rhaii-values.yaml <<'EOF'
               azure:
@@ -287,10 +272,13 @@ spec:
           value: $(params.rhaii-chart)
         - name: rhaii-namespace
           value: $(params.rhaii-namespace)
+        - name: registry-auth-secret-name
+          value: $(params.registry-auth-secret-name)
+        - name: registry-auth-secret-namespace
+          value: $(params.registry-auth-secret-namespace)
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
-        - name: registry-auth
           workspace: registry-auth
 
     - name: publish-kubeconfig
