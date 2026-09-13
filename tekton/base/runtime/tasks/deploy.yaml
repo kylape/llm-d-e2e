@@ -17,6 +17,8 @@ spec:
       default: 20m
   workspaces:
     - name: results
+    - name: guest-kubeconfig
+      optional: true
   results:
     - name: deployment-status
       description: READY or INFRASTRUCTURE_FAILURE
@@ -35,6 +37,9 @@ spec:
       script: |
         #!/usr/bin/env bash
         set -Eeuo pipefail
+        if [ "$(workspaces.guest-kubeconfig.bound)" = "true" ]; then
+          export KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
+        fi
         status=INFRASTRUCTURE_FAILURE
         trap 'printf "%s" "$status" > "$(results.deployment-status.path)"' EXIT
 
