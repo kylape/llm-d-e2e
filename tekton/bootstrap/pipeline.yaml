@@ -32,6 +32,12 @@ spec:
     - name: rhaii-pull-secret-name
       type: string
       default: rhai-pull-secret
+    - name: registry-auth-secret-name
+      type: string
+      default: rhai-pull-secret
+    - name: registry-auth-secret-namespace
+      type: string
+      default: klape-llm-d-e2e
     - name: guest-namespace
       type: string
       default: klape-llm-d-e2e
@@ -133,7 +139,7 @@ spec:
           workspace: guest-kubeconfig
 
     - name: configure-vcluster
-      runAfter: [create-vcluster]
+      runAfter: [create-vcluster, load-registry-auth]
       taskSpec:
         workspaces:
           - name: guest-kubeconfig
@@ -160,6 +166,40 @@ spec:
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
+
+    - name: load-registry-auth
+      runAfter: [create-vcluster]
+      taskSpec:
+        params:
+          - name: secret-name
+            type: string
+          - name: secret-namespace
+            type: string
+        workspaces:
+          - name: registry-auth
+        steps:
+          - name: load
+            image: alpine/helm:3.16.4
+            script: |
+              #!/bin/sh
+              set -eu
+              apk add --no-cache ca-certificates curl
+              curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
+                -o /usr/local/bin/kubectl
+              chmod +x /usr/local/bin/kubectl
+              kubectl get secret "$(params.secret-name)" \
+                --namespace "$(params.secret-namespace)" \
+                -o jsonpath='{.data.\.dockerconfigjson}' | \
+                base64 -d > "$(workspaces.registry-auth.path)/.dockerconfigjson"
+              test -s "$(workspaces.registry-auth.path)/.dockerconfigjson"
+      params:
+        - name: secret-name
+          value: $(params.registry-auth-secret-name)
+        - name: secret-namespace
+          value: $(params.registry-auth-secret-namespace)
+      workspaces:
+        - name: registry-auth
+          workspace: registry-auth
 
     - name: prepare-guest
       runAfter: [configure-vcluster]
