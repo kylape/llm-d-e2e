@@ -9,7 +9,7 @@ metadata:
 spec:
   description: >-
     Provision a vCluster on the host cluster, install RHAII in the guest,
-    and run the llm-d-e2e smoke suite from host Tekton.
+    and publish a guest kubeconfig for the separate llm-d-e2e pipeline.
   params:
     - name: host-namespace
       type: string
@@ -35,17 +35,12 @@ spec:
     - name: guest-namespace
       type: string
       default: klape-llm-d-e2e
-    - name: runner-image
+    - name: kubeconfig-secret-name
       type: string
-      description: Immutable image containing the llm-d-e2e CLI.
-    - name: vllm-image
+      default: llm-d-e2e-guest-kubeconfig
+    - name: kubeconfig-secret-namespace
       type: string
-    - name: model-uri
-      type: string
-      default: hf://Qwen/Qwen3-0.6B
-    - name: profile
-      type: string
-      default: configs/profiles/smoke.yaml
+      default: klape-llm-d-e2e
     - name: delete-vcluster
       type: string
       default: "false"
@@ -54,8 +49,6 @@ spec:
       description: Generated kubeconfig for the vCluster guest.
     - name: registry-auth
       description: Secret workspace containing a .dockerconfigjson file.
-    - name: results
-      description: Test reports and diagnostics.
   tasks:
     - name: create-vcluster
       taskSpec:
@@ -257,74 +250,37 @@ spec:
         - name: registry-auth
           workspace: registry-auth
 
-    - name: run-e2e
-      runAfter: [install-rhaii]
+    - name: publish-kubeconfig
+      runAfter: [configure-vcluster]
       taskSpec:
         params:
-          - name: runner-image
+          - name: secret-name
             type: string
-          - name: vllm-image
-            type: string
-          - name: model-uri
-            type: string
-          - name: profile
-            type: string
-          - name: guest-namespace
-            type: string
-          - name: pull-secret-name
-            type: string
-          - name: service-name
+          - name: secret-namespace
             type: string
         workspaces:
           - name: guest-kubeconfig
-          - name: results
         steps:
-          - name: test
-            image: $(params.runner-image)
-            env:
-              - name: KUBECONFIG
-                value: $(workspaces.guest-kubeconfig.path)/config
+          - name: publish
+            image: alpine/helm:3.16.4
             script: |
-              #!/usr/bin/env bash
-              set -uo pipefail
-              mkdir -p "$(workspaces.results.path)"
-              set +e
-              llm-d-e2e \
-                --profile "$(params.profile)" \
-                --mode deploy \
-                --namespace "$(params.guest-namespace)" \
-                --service-name "$(params.service-name)" \
-                --model-uri "$(params.model-uri)" \
-                --vllm-image "$(params.vllm-image)" \
-                --pull-secret "$(params.pull-secret-name)" \
-                --junitxml "$(workspaces.results.path)/junit.xml"
-              rc=$?
-              if [ "$rc" -ne 0 ]; then
-                kubectl --kubeconfig "$KUBECONFIG" -n "$(params.guest-namespace)" \
-                  get pods,events,llminferenceservices -o wide \
-                  > "$(workspaces.results.path)/guest-diagnostics.txt" 2>&1 || true
-              fi
-              exit "$rc"
+              #!/bin/sh
+              set -eu
+              apk add --no-cache ca-certificates curl
+              curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
+                -o /usr/local/bin/kubectl
+              chmod +x /usr/local/bin/kubectl
+              kubectl create secret generic "$(params.secret-name)" \
+                --namespace "$(params.secret-namespace)" --from-file=config="$(workspaces.guest-kubeconfig.path)/config" \
+                --type=Opaque --dry-run=client -o yaml | kubectl apply -f -
       params:
-        - name: runner-image
-          value: $(params.runner-image)
-        - name: vllm-image
-          value: $(params.vllm-image)
-        - name: model-uri
-          value: $(params.model-uri)
-        - name: profile
-          value: $(params.profile)
-        - name: guest-namespace
-          value: $(params.guest-namespace)
-        - name: pull-secret-name
-          value: $(params.rhaii-pull-secret-name)
-        - name: service-name
-          value: $(context.pipelineRun.name)-llmisvc
+        - name: secret-name
+          value: $(params.kubeconfig-secret-name)
+        - name: secret-namespace
+          value: $(params.kubeconfig-secret-namespace)
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
-        - name: results
-          workspace: results
   finally:
     - name: destroy-vcluster
       taskSpec:
@@ -334,6 +290,10 @@ spec:
           - name: vcluster-name
             type: string
           - name: delete-vcluster
+            type: string
+          - name: kubeconfig-secret-name
+            type: string
+          - name: kubeconfig-secret-namespace
             type: string
         steps:
           - name: destroy
@@ -349,6 +309,9 @@ spec:
                 --namespace "$(params.host-namespace)" || true
               helm uninstall "$(params.vcluster-name)-etcd" \
                 --namespace "$(params.host-namespace)" || true
+              kubectl delete secret "$(params.kubeconfig-secret-name)" \
+                --namespace "$(params.kubeconfig-secret-namespace)" \
+                --ignore-not-found
       params:
         - name: host-namespace
           value: $(params.host-namespace)
@@ -356,3 +319,7 @@ spec:
           value: $(params.vcluster-name)
         - name: delete-vcluster
           value: $(params.delete-vcluster)
+        - name: kubeconfig-secret-name
+          value: $(params.kubeconfig-secret-name)
+        - name: kubeconfig-secret-namespace
+          value: $(params.kubeconfig-secret-namespace)
