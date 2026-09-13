@@ -20,6 +20,8 @@ spec:
       description: Optional model name override for negative-path validation
   workspaces:
     - name: results
+    - name: guest-kubeconfig
+      optional: true
   tasks:
     - name: deploy
       taskRef:
@@ -38,6 +40,8 @@ spec:
       workspaces:
         - name: results
           workspace: results
+        - name: guest-kubeconfig
+          workspace: guest-kubeconfig
     - name: smoke-test
       runAfter:
         - deploy
@@ -55,6 +59,8 @@ spec:
       workspaces:
         - name: results
           workspace: results
+        - name: guest-kubeconfig
+          workspace: guest-kubeconfig
   finally:
     - name: cleanup
       taskRef:
@@ -71,3 +77,5 @@ spec:
       workspaces:
         - name: results
           workspace: results
+        - name: guest-kubeconfig
+          workspace: guest-kubeconfig
