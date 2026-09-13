@@ -9,21 +9,24 @@ spec:
   taskRunTemplate:
     serviceAccountName: llm-d-e2e-bootstrap
   params:
-    - name: host-namespace
-      value: llm-d-vcluster
     - name: vcluster-name
-      value: llm-d-vcluster
+      value: vcluster-test
+    - name: host-namespace
+      value: vcluster-test
     - name: vcluster-version
       value: 0.36.1
     - name: rhaii-chart
       value: quay.io/rhoai/rhai-on-xks-chart:3.5.0
     - name: kubeconfig-secret-name
       value: llm-d-e2e-guest-kubeconfig
+    - name: registry-auth-secret-name
+      value: rhai-pull-secret
+    - name: registry-auth-secret-namespace
+      value: klape-llm-d-e2e
     - name: delete-vcluster
       value: "false"
   workspaces:
     - name: guest-kubeconfig
       emptyDir: {}
     - name: registry-auth
-      secret:
-        secretName: rhai-pull-secret
+      emptyDir: {}
