@@ -1,0 +1,40 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: llm-d-e2e-host-bootstrap-
+  namespace: llm-d-e2e-bootstrap
+spec:
+  pipelineRef:
+    name: llm-d-e2e-host-bootstrap
+  taskRunTemplate:
+    serviceAccountName: llm-d-e2e-bootstrap
+  params:
+    - name: host-namespace
+      value: llm-d-vcluster
+    - name: vcluster-name
+      value: llm-d-vcluster
+    - name: vcluster-version
+      value: 0.36.1
+    - name: rhaii-chart
+      value: quay.io/rhoai/rhai-on-xks-chart:3.5.0
+    - name: runner-image
+      value: quay.io/example/llm-d-e2e@sha256:REPLACE_ME
+    - name: vllm-image
+      value: quay.io/example/vllm@sha256:REPLACE_ME
+    - name: model-uri
+      value: hf://Qwen/Qwen3-0.6B
+    - name: delete-vcluster
+      value: "false"
+  workspaces:
+    - name: guest-kubeconfig
+      emptyDir: {}
+    - name: registry-auth
+      secret:
+        secretName: rhai-pull-secret
+    - name: results
+      volumeClaimTemplate:
+        spec:
+          accessModes: [ReadWriteOnce]
+          resources:
+            requests:
+              storage: 2Gi
