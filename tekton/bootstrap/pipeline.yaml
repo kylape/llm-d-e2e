@@ -217,7 +217,6 @@ spec:
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
-          workspace: registry-auth
 
     - name: install-rhaii
       runAfter: [prepare-guest]
@@ -279,7 +278,6 @@ spec:
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
-          workspace: registry-auth
 
     - name: publish-kubeconfig
       runAfter: [configure-vcluster]
