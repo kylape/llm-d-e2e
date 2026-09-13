@@ -263,6 +263,9 @@ spec:
                 --username "$QUAY_USERNAME" --password-stdin \
                 --registry-config "$AUTH"
               export HELM_REGISTRY_CONFIG="$AUTH"
+              kubectl --kubeconfig "$KUBECONFIG" create namespace \
+                "$(params.rhaii-namespace)" --dry-run=client -o yaml | \
+                kubectl --kubeconfig "$KUBECONFIG" apply -f -
               cat > /tmp/rhaii-values.yaml <<'EOF'
               azure:
                 enabled: false
@@ -277,6 +280,7 @@ spec:
               EOF
               helm upgrade --install rhaii "oci://$(params.rhaii-chart)" \
                 --namespace "$(params.rhaii-namespace)" \
+                --take-ownership \
                 --kubeconfig "$KUBECONFIG" --values /tmp/rhaii-values.yaml \
                 --set-file imagePullSecret.dockerConfigJson="$AUTH" \
                 --wait --timeout=30m
