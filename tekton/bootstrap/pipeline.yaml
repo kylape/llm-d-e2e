@@ -150,7 +150,7 @@ spec:
             script: |
               #!/bin/sh
               set -eu
-              apk add --no-cache ca-certificates curl
+              apk add --no-cache ca-certificates curl jq
               curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
                 -o /usr/local/bin/kubectl
               chmod +x /usr/local/bin/kubectl
@@ -248,6 +248,20 @@ spec:
                 -o jsonpath='{.data.\.dockerconfigjson}' | \
                 base64 -d > /tmp/rhai-pull-secret.json
               AUTH=/tmp/rhai-pull-secret.json
+              QUAY_AUTH="$(jq -r '(.auths["quay.io"] // .auths["https://quay.io"] // empty).auth // empty' "$AUTH")"
+              if [ -n "$QUAY_AUTH" ]; then
+                QUAY_CREDENTIALS="$(printf '%s' "$QUAY_AUTH" | base64 -d)"
+                QUAY_USERNAME="${QUAY_CREDENTIALS%%:*}"
+                QUAY_PASSWORD="${QUAY_CREDENTIALS#*:}"
+              else
+                QUAY_USERNAME="$(jq -r '(.auths["quay.io"] // .auths["https://quay.io"] // empty).username // empty' "$AUTH")"
+                QUAY_PASSWORD="$(jq -r '(.auths["quay.io"] // .auths["https://quay.io"] // empty).password // empty' "$AUTH")"
+              fi
+              test -n "$QUAY_USERNAME"
+              test -n "$QUAY_PASSWORD"
+              printf '%s' "$QUAY_PASSWORD" | helm registry login quay.io \
+                --username "$QUAY_USERNAME" --password-stdin \
+                --registry-config "$AUTH"
               export HELM_REGISTRY_CONFIG="$AUTH"
               cat > /tmp/rhaii-values.yaml <<'EOF'
               azure:
