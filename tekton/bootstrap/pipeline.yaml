@@ -276,7 +276,7 @@ spec:
                         from: Same
               EOF
               helm upgrade --install rhaii "oci://$(params.rhaii-chart)" \
-                --namespace "$(params.rhaii-namespace)" --create-namespace \
+                --namespace "$(params.rhaii-namespace)" \
                 --kubeconfig "$KUBECONFIG" --values /tmp/rhaii-values.yaml \
                 --set-file imagePullSecret.dockerConfigJson="$AUTH" \
                 --wait --timeout=30m
