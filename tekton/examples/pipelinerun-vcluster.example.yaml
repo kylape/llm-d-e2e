@@ -1,0 +1,27 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: llm-d-vcluster-smoke-
+  namespace: klape-llm-d-e2e
+spec:
+  pipelineRef:
+    name: llm-d-e2e-smoke
+  params:
+    - name: vllm_image
+      value: quay.io/aipcc/rhaiis/cuda-ubi9:3.5
+    - name: model
+      value: hf://Qwen/Qwen3-0.6B
+  taskRunTemplate:
+    serviceAccountName: llm-d-e2e-runner
+  workspaces:
+    - name: guest-kubeconfig
+      secret:
+        secretName: llm-d-e2e-guest-kubeconfig
+    - name: results
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
