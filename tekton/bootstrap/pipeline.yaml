@@ -121,7 +121,7 @@ spec:
               kubectl wait --for=condition=Available \
                 "deployment/${NAME}" --namespace "$HOST_NS" --timeout=10m
               vcluster connect "$NAME" --namespace "$HOST_NS" \
-                --server "https://${NAME}.${HOST_NS}.svc.cluster.local:443" \
+                --server "https://${NAME}.${HOST_NS}:443" \
                 --print > "$(workspaces.guest-kubeconfig.path)/config"
               chmod 600 "$(workspaces.guest-kubeconfig.path)/config"
       params:
