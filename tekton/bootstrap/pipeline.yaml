@@ -25,7 +25,10 @@ spec:
       default: ""
     - name: etcd-image-repository
       type: string
-      default: registry.k8s.io/etcd
+      default: etcd
+    - name: etcd-image-registry
+      type: string
+      default: registry.k8s.io
     - name: etcd-image-tag
       type: string
       default: 3.6.8-0
@@ -75,6 +78,8 @@ spec:
             type: string
           - name: etcd-image-repository
             type: string
+          - name: etcd-image-registry
+            type: string
           - name: etcd-image-tag
             type: string
         workspaces:
@@ -115,6 +120,7 @@ spec:
                 --set replicaCount=1 \
                 --set auth.rbac.create=false \
                 --set auth.client.secureTransport=false \
+                --set image.registry="$(params.etcd-image-registry)" \
                 --set image.repository="$(params.etcd-image-repository)" \
                 --set image.tag="$(params.etcd-image-tag)"
 
@@ -148,6 +154,8 @@ spec:
           value: $(params.etcd-chart-version)
         - name: etcd-image-repository
           value: $(params.etcd-image-repository)
+        - name: etcd-image-registry
+          value: $(params.etcd-image-registry)
         - name: etcd-image-tag
           value: $(params.etcd-image-tag)
       workspaces:
