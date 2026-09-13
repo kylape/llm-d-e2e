@@ -124,8 +124,9 @@ kubectl apply -k tekton/bootstrap
 ```
 
 The bootstrap example PipelineRun is intentionally not included by Kustomize.
-Make a `rhai-pull-secret` Secret available in `llm-d-e2e-bootstrap`, and create
-the bootstrap example only after explicit approval:
+Make a `rhai-pull-secret` Secret available in `klape-llm-d-e2e` (or change the
+source Secret parameters), and create the bootstrap example only after explicit
+approval:
 
 ```bash
 kubectl create -f tekton/bootstrap/pipelinerun.example.yaml
