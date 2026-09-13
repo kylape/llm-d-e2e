@@ -79,7 +79,7 @@ spec:
           - name: guest-kubeconfig
         steps:
           - name: provision
-            image: alpine/helm:3.16.4
+            image: alpine/helm:3.19.0
             env:
               - name: HOME
                 value: /tekton/home
@@ -146,7 +146,7 @@ spec:
           - name: guest-kubeconfig
         steps:
           - name: configure
-            image: alpine/helm:3.16.4
+            image: alpine/helm:3.19.0
             script: |
               #!/bin/sh
               set -eu
@@ -184,7 +184,7 @@ spec:
           - name: guest-kubeconfig
         steps:
           - name: namespace-and-secret
-            image: alpine/helm:3.16.4
+            image: alpine/helm:3.19.0
             script: |
               #!/bin/sh
               set -eu
@@ -234,7 +234,7 @@ spec:
           - name: guest-kubeconfig
         steps:
           - name: install
-            image: alpine/helm:3.16.4
+            image: alpine/helm:3.19.0
             script: |
               #!/bin/sh
               set -eu
@@ -305,7 +305,7 @@ spec:
           - name: guest-kubeconfig
         steps:
           - name: publish
-            image: alpine/helm:3.16.4
+            image: alpine/helm:3.19.0
             script: |
               #!/bin/sh
               set -eu
@@ -340,7 +340,7 @@ spec:
             type: string
         steps:
           - name: destroy
-            image: alpine/helm:3.16.4
+            image: alpine/helm:3.19.0
             script: |
               #!/bin/sh
               set -eu
