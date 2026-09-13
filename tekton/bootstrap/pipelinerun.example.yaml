@@ -16,7 +16,7 @@ spec:
     - name: vcluster-version
       value: 0.36.1
     - name: rhaii-chart
-      value: quay.io/rhoai/rhai-on-xks-chart:v3.5.0
+      value: quay.io/rhoai/rhai-on-xks-chart:v3.5.1
     - name: kubeconfig-secret-name
       value: llm-d-e2e-guest-kubeconfig
     - name: registry-auth-secret-name
