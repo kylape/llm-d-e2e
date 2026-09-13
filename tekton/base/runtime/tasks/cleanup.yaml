@@ -14,6 +14,8 @@ spec:
       type: string
   workspaces:
     - name: results
+    - name: guest-kubeconfig
+      optional: true
   results:
     - name: qualification-status
       description: PASS, TEST_FAILURE, or INFRASTRUCTURE_FAILURE
@@ -28,6 +30,9 @@ spec:
       script: |
         #!/usr/bin/env bash
         set -Eeuo pipefail
+        if [ "$(workspaces.guest-kubeconfig.bound)" = "true" ]; then
+          export KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
+        fi
         kubectl delete llminferenceservice "$SERVICE_NAME" -n "$NAMESPACE" \
           --ignore-not-found --wait=false
         for attempt in $(seq 1 60); do
