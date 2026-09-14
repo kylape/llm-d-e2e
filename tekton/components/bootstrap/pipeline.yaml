@@ -296,6 +296,9 @@ spec:
                 "$(params.rhaii-namespace)" --dry-run=client -o yaml | \
                 kubectl --kubeconfig "$KUBECONFIG" apply -f -
               cat > /tmp/rhaii-values.yaml <<'EOF'
+              hooks:
+                postInstallCrs:
+                  enabled: false
               azure:
                 enabled: false
               coreweave:
@@ -344,16 +347,71 @@ spec:
                 --for=condition=Available deployment/coreweave-cloud-manager-operator \
                 --timeout=10m
 
-              # Apply the provider CR explicitly. This triggers the CoreWeave
-              # cloud-manager cert-manager bootstrap before the remaining Helm
-              # post-upgrade hooks run. The current values leave its spec empty,
-              # matching the chart hook's effective configuration.
+              # Apply the CRs from the chart's postInstallCrs hook explicitly.
+              # The KServe CR must be created before the AIGateway CRD can be
+              # registered; doing this here avoids the hook's circular wait.
               kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
               apiVersion: infrastructure.opendatahub.io/v1alpha1
               kind: CoreWeaveKubernetesEngine
               metadata:
                 name: default-coreweavekubernetesengine
               spec: {}
+              EOF
+
+              kubectl --kubeconfig "$KUBECONFIG" wait \
+                --for=condition=established --timeout=300s \
+                crd/platforms.config.opendatahub.io
+              kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
+              apiVersion: config.opendatahub.io/v1alpha1
+              kind: Platform
+              metadata:
+                name: default
+              spec:
+                modules:
+                  aigateway:
+                    managementState: Managed
+                  kserve:
+                    managementState: Managed
+              EOF
+
+              elapsed=0
+              while [ "$elapsed" -lt 300 ]; do
+                kubectl --kubeconfig "$KUBECONFIG" get \
+                  crd/kserves.components.platform.opendatahub.io \
+                  >/dev/null 2>&1 && break
+                sleep 5
+                elapsed=$((elapsed + 5))
+              done
+              kubectl --kubeconfig "$KUBECONFIG" wait \
+                --for=condition=established --timeout=300s \
+                crd/kserves.components.platform.opendatahub.io
+              kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
+              apiVersion: components.platform.opendatahub.io/v1alpha1
+              kind: Kserve
+              metadata:
+                name: default-kserve
+              spec: {}
+              EOF
+
+              elapsed=0
+              while [ "$elapsed" -lt 300 ]; do
+                kubectl --kubeconfig "$KUBECONFIG" get \
+                  crd/aigateways.components.platform.opendatahub.io \
+                  >/dev/null 2>&1 && break
+                sleep 5
+                elapsed=$((elapsed + 5))
+              done
+              kubectl --kubeconfig "$KUBECONFIG" wait \
+                --for=condition=established --timeout=300s \
+                crd/aigateways.components.platform.opendatahub.io
+              kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
+              apiVersion: components.platform.opendatahub.io/v1alpha1
+              kind: AIGateway
+              metadata:
+                name: default-aigateway
+              spec:
+                modelsAsAService:
+                  managementState: Managed
               EOF
 
               helm upgrade --install rhaii /tmp/odh-gitops/charts/rhai-on-xks-chart \
