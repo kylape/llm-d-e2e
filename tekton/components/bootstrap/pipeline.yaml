@@ -290,6 +290,9 @@ spec:
                 redhat-ai-gateway-infra --dry-run=client -o yaml | \
                 kubectl --kubeconfig "$KUBECONFIG" apply -f -
               kubectl --kubeconfig "$KUBECONFIG" create namespace \
+                kuadrant-system --dry-run=client -o yaml | \
+                kubectl --kubeconfig "$KUBECONFIG" apply -f -
+              kubectl --kubeconfig "$KUBECONFIG" create namespace \
                 "$(params.rhaii-namespace)" --dry-run=client -o yaml | \
                 kubectl --kubeconfig "$KUBECONFIG" apply -f -
               cat > /tmp/rhaii-values.yaml <<'EOF'
