@@ -106,6 +106,12 @@ spec:
               EOF
               kubectl rollout status deployment/postgres \
                 --namespace redhat-ai-gateway-infra --timeout=10m
+              kubectl wait --for=create deployment/maas-api \
+                --namespace redhat-ai-gateway-infra --timeout=10m
+              kubectl rollout restart deployment/maas-api \
+                --namespace redhat-ai-gateway-infra
+              kubectl rollout status deployment/maas-api \
+                --namespace redhat-ai-gateway-infra --timeout=10m
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
