@@ -32,6 +32,11 @@ spec:
                 -o /usr/local/bin/kubectl
               chmod +x /usr/local/bin/kubectl
               export KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
+              maas_api_preexisting=false
+              if kubectl get deployment/maas-api \
+                --namespace redhat-ai-gateway-infra >/dev/null 2>&1; then
+                maas_api_preexisting=true
+              fi
               kubectl create namespace redhat-ai-gateway-infra \
                 --dry-run=client -o yaml | kubectl apply -f -
               kubectl apply -f - <<EOF
@@ -106,12 +111,14 @@ spec:
               EOF
               kubectl rollout status deployment/postgres \
                 --namespace redhat-ai-gateway-infra --timeout=10m
-              kubectl wait --for=create deployment/maas-api \
-                --namespace redhat-ai-gateway-infra --timeout=10m
-              kubectl rollout restart deployment/maas-api \
-                --namespace redhat-ai-gateway-infra
-              kubectl rollout status deployment/maas-api \
-                --namespace redhat-ai-gateway-infra --timeout=10m
+              if [ "$maas_api_preexisting" = true ]; then
+                kubectl rollout restart deployment/maas-api \
+                  --namespace redhat-ai-gateway-infra
+                kubectl rollout status deployment/maas-api \
+                  --namespace redhat-ai-gateway-infra --timeout=10m
+              else
+                echo "maas-api was not present before database setup; no restart needed"
+              fi
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
@@ -249,6 +256,8 @@ spec:
                 -o /usr/local/bin/kubectl
               chmod +x /usr/local/bin/kubectl
               export KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
+              kubectl wait --for=create deployment/maas-api \
+                --namespace redhat-ai-gateway-infra --timeout=10m
               kubectl rollout status deployment/maas-controller \
                 --namespace redhat-ods-applications --timeout=10m
               kubectl rollout status deployment/maas-api \
