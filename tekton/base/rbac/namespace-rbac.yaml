@@ -2,6 +2,8 @@ apiVersion: v1
 kind: Namespace
 metadata:
   name: klape-llm-d-e2e
+  labels:
+    inference-gateway-access: "true"
 ---
 apiVersion: v1
 kind: ServiceAccount
@@ -70,28 +72,4 @@ subjects:
 roleRef:
   kind: ClusterRole
   name: llm-d-e2e-read-platform
-  apiGroup: rbac.authorization.k8s.io
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  name: llm-d-e2e-gateway-access
-  namespace: redhat-ods-applications
-rules:
-  - apiGroups: [""]
-    resources: ["services", "services/portforward"]
-    verbs: ["get", "list", "watch", "create"]
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: RoleBinding
-metadata:
-  name: llm-d-e2e-gateway-access
-  namespace: redhat-ods-applications
-subjects:
-  - kind: ServiceAccount
-    name: llm-d-e2e-runner
-    namespace: klape-llm-d-e2e
-roleRef:
-  kind: Role
-  name: llm-d-e2e-gateway-access
   apiGroup: rbac.authorization.k8s.io
