@@ -400,6 +400,36 @@ spec:
 
               wait_for_crd aigateways.components.platform.opendatahub.io
               kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRole
+              metadata:
+                name: ai-gateway-rbac-escalation
+              rules:
+                - apiGroups: [networking.istio.io]
+                  resources: [envoyfilters]
+                  verbs: [update]
+                - apiGroups: [networking.k8s.io]
+                  resources: [networkpolicies]
+                  verbs: [update]
+                - apiGroups: [rbac.authorization.k8s.io]
+                  resources: [clusterroles, clusterrolebindings]
+                  verbs: [update]
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRoleBinding
+              metadata:
+                name: ai-gateway-rbac-escalation
+              roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: ClusterRole
+                name: ai-gateway-rbac-escalation
+              subjects:
+                - kind: ServiceAccount
+                  name: ai-gateway-operator
+                  namespace: redhat-ods-applications
+              EOF
+
+              kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
               apiVersion: components.platform.opendatahub.io/v1alpha1
               kind: AIGateway
               metadata:
@@ -408,27 +438,6 @@ spec:
                 modelsAsAService:
                   managementState: Managed
               EOF
-
-              # The xKS AIGateway controller creates ClusterRoles containing
-              # update permissions for these resources. Grant its manager
-              # role the same permissions first so Kubernetes allows that
-              # generated RBAC to be created without an escalation error.
-              elapsed=0
-              while ! kubectl --kubeconfig "$KUBECONFIG" get \
-                  clusterrole/ai-gateway-manager-role >/dev/null 2>&1; do
-                if [ "$elapsed" -ge 300 ]; then
-                  echo "Timed out waiting for ai-gateway-manager-role" >&2
-                  exit 1
-                fi
-                sleep 5
-                elapsed=$((elapsed + 5))
-              done
-              kubectl --kubeconfig "$KUBECONFIG" patch \
-                clusterrole/ai-gateway-manager-role --type=json --patch='[
-                  {"op":"add","path":"/rules/-","value":{"apiGroups":["networking.istio.io"],"resources":["envoyfilters"],"verbs":["update"]}},
-                  {"op":"add","path":"/rules/-","value":{"apiGroups":["networking.k8s.io"],"resources":["networkpolicies"],"verbs":["update"]}},
-                  {"op":"add","path":"/rules/-","value":{"apiGroups":["rbac.authorization.k8s.io"],"resources":["clusterroles","clusterrolebindings"],"verbs":["update"]}}
-                ]'
 
               kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
               apiVersion: v1
