@@ -112,7 +112,8 @@ the normal Kustomization is intended for the guest runtime setup.
 
 The bootstrap pipeline runs entirely in host Tekton. It creates external etcd
 and a vCluster in the host namespace, generates a guest kubeconfig, configures
-guest CoreDNS for OpenShift compatibility, installs the RHAII OCI chart, and
+guest CoreDNS for OpenShift compatibility, clones a pinned `odh-gitops` source
+revision and installs its RHAII chart, and
 publishes the guest kubeconfig as a Secret for a later e2e PipelineRun. It
 retains the vCluster by default; set `delete-vcluster` to `"true"` for an
 explicitly ephemeral run.
