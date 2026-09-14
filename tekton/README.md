@@ -70,6 +70,12 @@ repository publicly readable within Forgejo, and keep push access restricted
 to the administrative account. This avoids placing a GitHub token in the
 cluster.
 
+The bootstrap and MaaS pipelines use a separate UBI-based tools image for
+Helm, kubectl, vcluster, and their supporting command-line utilities. Build it
+with the existing image-build Pipeline by setting `dockerfile` to
+`Dockerfile.tekton-tools`, then pin the resulting digest in the pipeline image
+references.
+
 ## Layout and installation
 
 The manifests are organized as reusable components and an environment overlay:

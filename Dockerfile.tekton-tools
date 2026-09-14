@@ -1,0 +1,38 @@
+FROM registry.access.redhat.com/ubi9:9.6
+
+ARG HELM_VERSION=3.19.0
+ARG KUBECTL_VERSION=v1.33.0
+ARG VCLUSTER_VERSION=0.36.1
+ARG KUBECTL_SHA256=9efe8d3facb23e1618cba36fb1c4e15ac9dc3ed5a2c2e18109e4a66b2bac12dc
+
+USER 0
+
+RUN dnf install -y \
+      bash \
+      ca-certificates \
+      curl \
+      git \
+      gzip \
+      jq \
+      openssl \
+      tar \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf \
+    && curl -fsSL "https://get.helm.sh/helm-v${HELM_VERSION}-linux-amd64.tar.gz" \
+      -o /tmp/helm.tar.gz \
+    && tar -xzf /tmp/helm.tar.gz -C /tmp \
+    && install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm \
+    && curl -fsSL "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/amd64/kubectl" \
+      -o /usr/local/bin/kubectl \
+    && echo "${KUBECTL_SHA256}  /usr/local/bin/kubectl" | sha256sum -c - \
+    && chmod 0755 /usr/local/bin/kubectl \
+    && curl -fsSL \
+      "https://github.com/loft-sh/vcluster/releases/download/v${VCLUSTER_VERSION}/vcluster-linux-amd64" \
+      -o /usr/local/bin/vcluster \
+    && chmod 0755 /usr/local/bin/vcluster \
+    && rm -rf /tmp/helm.tar.gz /tmp/linux-amd64
+
+ENV HOME=/tekton/home
+
+USER 1001
+WORKDIR /workspace
