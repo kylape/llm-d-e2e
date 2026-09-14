@@ -105,10 +105,10 @@ kubectl apply -k tekton/components/kueue
 
 ## Host-cluster bootstrap pipeline
 
-`bootstrap/` contains an opt-in pipeline for experiments where host-cluster
-Tekton must create the vCluster and install RHAII before running the e2e suite.
-It is deliberately excluded from the default `tekton/` Kustomization because
-the normal Kustomization is intended for the guest runtime setup.
+`components/bootstrap/` contains the pipeline that creates the vCluster and
+installs RHAII. It is composed into the same environment overlay as the
+`components/llm-d-e2e/` and `components/maas/` pipelines; the PipelineRuns are
+still started independently.
 
 The bootstrap pipeline runs entirely in host Tekton. It creates external etcd
 and a vCluster in the host namespace, generates a guest kubeconfig, configures
@@ -121,7 +121,7 @@ explicitly ephemeral run.
 Install the bootstrap resources only after reviewing them:
 
 ```bash
-kubectl apply -k tekton/bootstrap
+kubectl apply -k tekton/overlays/klape-llm-d-e2e
 ```
 
 The bootstrap example PipelineRun is intentionally not included by Kustomize.
@@ -130,7 +130,7 @@ source Secret parameters), and create the bootstrap example only after explicit
 approval:
 
 ```bash
-kubectl create -f tekton/bootstrap/pipelinerun.example.yaml
+kubectl create -f tekton/components/bootstrap/pipelinerun.example.yaml
 ```
 
 After bootstrap succeeds, run the existing smoke pipeline against the guest

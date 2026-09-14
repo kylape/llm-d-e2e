@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
   generateName: llm-d-e2e-host-bootstrap-
-  namespace: llm-d-e2e-bootstrap
+  namespace: klape-llm-d-e2e
 spec:
   pipelineRef:
     name: llm-d-e2e-host-bootstrap

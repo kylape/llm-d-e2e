@@ -2,7 +2,7 @@ apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
   name: llm-d-e2e-host-bootstrap
-  namespace: llm-d-e2e-bootstrap
+  namespace: klape-llm-d-e2e
   labels:
     app.kubernetes.io/name: llm-d-e2e
     app.kubernetes.io/component: host-bootstrap
@@ -287,6 +287,9 @@ spec:
               git clone --no-checkout "$(params.rhaii-git-repository)" /tmp/odh-gitops
               git -C /tmp/odh-gitops checkout --detach "$(params.rhaii-git-revision)"
               helm dependency build /tmp/odh-gitops/charts/rhai-on-xks-chart
+              kubectl --kubeconfig "$KUBECONFIG" create namespace \
+                redhat-ai-gateway-infra --dry-run=client -o yaml | \
+                kubectl --kubeconfig "$KUBECONFIG" apply -f -
               kubectl --kubeconfig "$KUBECONFIG" create namespace \
                 "$(params.rhaii-namespace)" --dry-run=client -o yaml | \
                 kubectl --kubeconfig "$KUBECONFIG" apply -f -
