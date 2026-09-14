@@ -297,6 +297,18 @@ spec:
                 --for=condition=Available deployment/coreweave-cloud-manager-operator \
                 --timeout=10m
 
+              # Apply the provider CR explicitly. This triggers the CoreWeave
+              # cloud-manager cert-manager bootstrap before the remaining Helm
+              # post-upgrade hooks run. The current values leave its spec empty,
+              # matching the chart hook's effective configuration.
+              kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
+              apiVersion: infrastructure.opendatahub.io/v1alpha1
+              kind: CoreWeaveKubernetesEngine
+              metadata:
+                name: default-coreweavekubernetesengine
+              spec: {}
+              EOF
+
               helm upgrade --install rhaii /tmp/odh-gitops/charts/rhai-on-xks-chart \
                 --namespace "$(params.rhaii-namespace)" \
                 --take-ownership \
