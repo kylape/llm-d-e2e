@@ -291,7 +291,18 @@ spec:
                 --take-ownership \
                 --kubeconfig "$KUBECONFIG" --values /tmp/rhaii-values.yaml \
                 --set-file imagePullSecret.dockerConfigJson="$AUTH" \
-                --wait --timeout=30m
+                --no-hooks --timeout=30m
+
+              kubectl --kubeconfig "$KUBECONFIG" -n rhai-cloudmanager-system wait \
+                --for=condition=Available deployment/coreweave-cloud-manager-operator \
+                --timeout=10m
+
+              helm upgrade --install rhaii /tmp/odh-gitops/charts/rhai-on-xks-chart \
+                --namespace "$(params.rhaii-namespace)" \
+                --take-ownership \
+                --kubeconfig "$KUBECONFIG" --values /tmp/rhaii-values.yaml \
+                --set-file imagePullSecret.dockerConfigJson="$AUTH" \
+                --timeout=30m
       params:
         - name: rhaii-git-repository
           value: $(params.rhaii-git-repository)
