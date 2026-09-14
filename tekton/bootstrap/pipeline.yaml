@@ -264,9 +264,20 @@ spec:
               fi
               test -n "$QUAY_USERNAME"
               test -n "$QUAY_PASSWORD"
-              printf '%s' "$QUAY_PASSWORD" | helm registry login quay.io \
-                --username "$QUAY_USERNAME" --password-stdin \
-                --registry-config "$AUTH"
+              max_attempts=6
+              attempt=1
+              while ! printf '%s' "$QUAY_PASSWORD" | helm registry login quay.io \
+                  --username "$QUAY_USERNAME" --password-stdin \
+                  --registry-config "$AUTH"; do
+                if [ "$attempt" -ge "$max_attempts" ]; then
+                  echo "Quay authentication failed after ${max_attempts} attempts" >&2
+                  exit 1
+                fi
+                delay=$((attempt * 15))
+                echo "Quay authentication failed; retrying in ${delay}s (${attempt}/${max_attempts})" >&2
+                sleep "$delay"
+                attempt=$((attempt + 1))
+              done
               export HELM_REGISTRY_CONFIG="$AUTH"
               git clone --no-checkout "$(params.rhaii-git-repository)" /tmp/odh-gitops
               git -C /tmp/odh-gitops checkout --detach "$(params.rhaii-git-revision)"
