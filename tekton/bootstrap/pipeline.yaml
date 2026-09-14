@@ -38,6 +38,9 @@ spec:
     - name: rhaii-namespace
       type: string
       default: redhat-ods-operator
+    - name: rhaii-gateway-namespace
+      type: string
+      default: redhat-ods-applications
     - name: rhaii-pull-secret-name
       type: string
       default: rhai-pull-secret
@@ -231,6 +234,8 @@ spec:
             type: string
           - name: rhaii-namespace
             type: string
+          - name: rhaii-gateway-namespace
+            type: string
           - name: registry-auth-secret-name
             type: string
           - name: registry-auth-secret-namespace
@@ -326,6 +331,14 @@ spec:
                 --kubeconfig "$KUBECONFIG" --values /tmp/rhaii-values.yaml \
                 --set-file imagePullSecret.dockerConfigJson="$AUTH" \
                 --timeout=30m
+
+              # The chart currently creates the Gateway with Same-namespace
+              # route admission. The e2e namespace is separate, so allow
+              # HTTPRoutes from any guest namespace after the chart hooks run.
+              kubectl --kubeconfig "$KUBECONFIG" patch gateway inference-gateway \
+                --namespace "$(params.rhaii-gateway-namespace)" \
+                --type=json \
+                --patch='[{"op":"replace","path":"/spec/listeners/0/allowedRoutes/namespaces/from","value":"All"},{"op":"replace","path":"/spec/listeners/1/allowedRoutes/namespaces/from","value":"All"}]'
       params:
         - name: rhaii-git-repository
           value: $(params.rhaii-git-repository)
@@ -333,6 +346,8 @@ spec:
           value: $(params.rhaii-git-revision)
         - name: rhaii-namespace
           value: $(params.rhaii-namespace)
+        - name: rhaii-gateway-namespace
+          value: $(params.rhaii-gateway-namespace)
         - name: registry-auth-secret-name
           value: $(params.registry-auth-secret-name)
         - name: registry-auth-secret-namespace
