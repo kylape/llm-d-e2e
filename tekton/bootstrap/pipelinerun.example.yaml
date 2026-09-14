@@ -15,8 +15,10 @@ spec:
       value: vcluster-test
     - name: vcluster-version
       value: 0.36.1
-    - name: rhaii-chart
-      value: quay.io/rhoai/rhai-on-xks-chart:v3.4.4
+    - name: rhaii-git-repository
+      value: https://github.com/opendatahub-io/odh-gitops.git
+    - name: rhaii-git-revision
+      value: af383937f4efd498a24f1128cde6a1779a70e69f
     - name: kubeconfig-secret-name
       value: llm-d-e2e-guest-kubeconfig
     - name: registry-auth-secret-name

@@ -29,9 +29,12 @@ spec:
     - name: etcd-image-tag
       type: string
       default: 3.6.8-0
-    - name: rhaii-chart
+    - name: rhaii-git-repository
       type: string
-      description: RHAII OCI chart without the oci:// prefix.
+      default: https://github.com/opendatahub-io/odh-gitops.git
+    - name: rhaii-git-revision
+      type: string
+      default: af383937f4efd498a24f1128cde6a1779a70e69f
     - name: rhaii-namespace
       type: string
       default: redhat-ods-operator
@@ -222,7 +225,9 @@ spec:
       runAfter: [prepare-guest]
       taskSpec:
         params:
-          - name: rhaii-chart
+          - name: rhaii-git-repository
+            type: string
+          - name: rhaii-git-revision
             type: string
           - name: rhaii-namespace
             type: string
@@ -239,7 +244,7 @@ spec:
               #!/bin/sh
               set -eu
               KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
-              apk add --no-cache ca-certificates curl jq
+              apk add --no-cache ca-certificates curl git jq
               curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
                 -o /usr/local/bin/kubectl
               chmod +x /usr/local/bin/kubectl
@@ -263,6 +268,9 @@ spec:
                 --username "$QUAY_USERNAME" --password-stdin \
                 --registry-config "$AUTH"
               export HELM_REGISTRY_CONFIG="$AUTH"
+              git clone --no-checkout "$(params.rhaii-git-repository)" /tmp/odh-gitops
+              git -C /tmp/odh-gitops checkout --detach "$(params.rhaii-git-revision)"
+              helm dependency build /tmp/odh-gitops/charts/rhai-on-xks-chart
               kubectl --kubeconfig "$KUBECONFIG" create namespace \
                 "$(params.rhaii-namespace)" --dry-run=client -o yaml | \
                 kubectl --kubeconfig "$KUBECONFIG" apply -f -
@@ -278,15 +286,17 @@ spec:
                       namespaces:
                         from: Same
               EOF
-              helm upgrade --install rhaii "oci://$(params.rhaii-chart)" \
+              helm upgrade --install rhaii /tmp/odh-gitops/charts/rhai-on-xks-chart \
                 --namespace "$(params.rhaii-namespace)" \
                 --take-ownership \
                 --kubeconfig "$KUBECONFIG" --values /tmp/rhaii-values.yaml \
                 --set-file imagePullSecret.dockerConfigJson="$AUTH" \
                 --wait --timeout=30m
       params:
-        - name: rhaii-chart
-          value: $(params.rhaii-chart)
+        - name: rhaii-git-repository
+          value: $(params.rhaii-git-repository)
+        - name: rhaii-git-revision
+          value: $(params.rhaii-git-revision)
         - name: rhaii-namespace
           value: $(params.rhaii-namespace)
         - name: registry-auth-secret-name
