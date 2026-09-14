@@ -347,6 +347,23 @@ spec:
                 --for=condition=Available deployment/coreweave-cloud-manager-operator \
                 --timeout=10m
 
+              wait_for_crd() {
+                local crd="$1"
+                local elapsed=0
+                while ! kubectl --kubeconfig "$KUBECONFIG" get "crd/${crd}" \
+                    >/dev/null 2>&1; do
+                  if [ "$elapsed" -ge 300 ]; then
+                    echo "Timed out waiting for CRD ${crd} to be created" >&2
+                    exit 1
+                  fi
+                  sleep 5
+                  elapsed=$((elapsed + 5))
+                done
+                kubectl --kubeconfig "$KUBECONFIG" wait \
+                  --for=condition=established --timeout=300s \
+                  "crd/${crd}"
+              }
+
               # Apply the CRs from the chart's postInstallCrs hook explicitly.
               # The KServe CR must be created before the AIGateway CRD can be
               # registered; doing this here avoids the hook's circular wait.
@@ -358,9 +375,7 @@ spec:
               spec: {}
               EOF
 
-              kubectl --kubeconfig "$KUBECONFIG" wait \
-                --for=condition=established --timeout=300s \
-                crd/platforms.config.opendatahub.io
+              wait_for_crd platforms.config.opendatahub.io
               kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
               apiVersion: config.opendatahub.io/v1alpha1
               kind: Platform
@@ -374,17 +389,7 @@ spec:
                     managementState: Managed
               EOF
 
-              elapsed=0
-              while [ "$elapsed" -lt 300 ]; do
-                kubectl --kubeconfig "$KUBECONFIG" get \
-                  crd/kserves.components.platform.opendatahub.io \
-                  >/dev/null 2>&1 && break
-                sleep 5
-                elapsed=$((elapsed + 5))
-              done
-              kubectl --kubeconfig "$KUBECONFIG" wait \
-                --for=condition=established --timeout=300s \
-                crd/kserves.components.platform.opendatahub.io
+              wait_for_crd kserves.components.platform.opendatahub.io
               kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
               apiVersion: components.platform.opendatahub.io/v1alpha1
               kind: Kserve
@@ -393,17 +398,7 @@ spec:
               spec: {}
               EOF
 
-              elapsed=0
-              while [ "$elapsed" -lt 300 ]; do
-                kubectl --kubeconfig "$KUBECONFIG" get \
-                  crd/aigateways.components.platform.opendatahub.io \
-                  >/dev/null 2>&1 && break
-                sleep 5
-                elapsed=$((elapsed + 5))
-              done
-              kubectl --kubeconfig "$KUBECONFIG" wait \
-                --for=condition=established --timeout=300s \
-                crd/aigateways.components.platform.opendatahub.io
+              wait_for_crd aigateways.components.platform.opendatahub.io
               kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
               apiVersion: components.platform.opendatahub.io/v1alpha1
               kind: AIGateway
