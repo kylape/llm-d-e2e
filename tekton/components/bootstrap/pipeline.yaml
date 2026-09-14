@@ -319,12 +319,26 @@ spec:
                         namespaces:
                           from: All
               EOF
-              helm upgrade --install rhaii /tmp/odh-gitops/charts/rhai-on-xks-chart \
-                --namespace "$(params.rhaii-namespace)" \
-                --take-ownership \
-                --kubeconfig "$KUBECONFIG" --values /tmp/rhaii-values.yaml \
-                --set-file imagePullSecret.dockerConfigJson="$AUTH" \
-                --no-hooks --timeout=30m
+              max_helm_attempts=3
+              helm_attempt=1
+              while :; do
+                if helm upgrade --install rhaii /tmp/odh-gitops/charts/rhai-on-xks-chart \
+                    --namespace "$(params.rhaii-namespace)" \
+                    --take-ownership \
+                    --kubeconfig "$KUBECONFIG" --values /tmp/rhaii-values.yaml \
+                    --set-file imagePullSecret.dockerConfigJson="$AUTH" \
+                    --no-hooks --timeout=30m; then
+                  break
+                fi
+                if [ "$helm_attempt" -ge "$max_helm_attempts" ]; then
+                  echo "Initial RHAII Helm install failed after ${max_helm_attempts} attempts" >&2
+                  exit 1
+                fi
+                delay=$((helm_attempt * 15))
+                echo "Initial RHAII Helm install failed; retrying in ${delay}s (${helm_attempt}/${max_helm_attempts})" >&2
+                sleep "$delay"
+                helm_attempt=$((helm_attempt + 1))
+              done
 
               kubectl --kubeconfig "$KUBECONFIG" -n rhai-cloudmanager-system wait \
                 --for=condition=Available deployment/coreweave-cloud-manager-operator \
