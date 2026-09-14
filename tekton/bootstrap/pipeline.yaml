@@ -301,6 +301,18 @@ spec:
                     allowedRoutes:
                       namespaces:
                         from: Same
+                aigateway:
+                  enabled: true
+                  spec:
+                    modelsAsAService:
+                      managementState: Managed
+                  modelsAsAService:
+                    gateway:
+                      create: true
+                      gatewayClassName: istio
+                      allowedRoutes:
+                        namespaces:
+                          from: All
               EOF
               helm upgrade --install rhaii /tmp/odh-gitops/charts/rhai-on-xks-chart \
                 --namespace "$(params.rhaii-namespace)" \
