@@ -405,12 +405,12 @@ spec:
               metadata:
                 name: ai-gateway-rbac-escalation
               rules:
-                # The xKS bundle generates several subordinate ClusterRoles.
-                # Grant the controller the complete resource scope required
-                # for Kubernetes RBAC escalation checks while it creates them.
-                - apiGroups: ["*"]
-                  resources: ["*"]
-                  verbs: ["*"]
+                # The xKS bundle generates several subordinate Roles and
+                # ClusterRoles. These verbs explicitly authorize RBAC
+                # escalation and binding without enumerating their contents.
+                - apiGroups: [rbac.authorization.k8s.io]
+                  resources: [roles, clusterroles]
+                  verbs: [bind, escalate]
               ---
               apiVersion: rbac.authorization.k8s.io/v1
               kind: ClusterRoleBinding
