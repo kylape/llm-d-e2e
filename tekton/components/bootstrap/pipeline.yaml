@@ -479,6 +479,9 @@ spec:
                 - apiGroups: [cert-manager.io]
                   resources: [certificates]
                   verbs: [get, create, patch, update]
+                - apiGroups: [""]
+                  resources: [secrets]
+                  verbs: [get, create, patch, update]
               ---
               apiVersion: rbac.authorization.k8s.io/v1
               kind: RoleBinding
