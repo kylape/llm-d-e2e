@@ -447,7 +447,7 @@ spec:
                   verbs: [get, create, patch, update]
                 - apiGroups: [""]
                   resources: [namespaces]
-                  resourceNames: [models-as-a-service, kuadrant-system]
+                  resourceNames: [redhat-ods-applications, kuadrant-system]
                   verbs: [get, create, patch]
                 - apiGroups: [apps]
                   resources: [deployments]
