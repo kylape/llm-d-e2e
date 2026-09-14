@@ -409,6 +409,127 @@ spec:
                   managementState: Managed
               EOF
 
+              kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
+              apiVersion: v1
+              kind: ServiceAccount
+              metadata:
+                name: rhai-post-install-hook
+                namespace: redhat-ods-operator
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRole
+              metadata:
+                name: rhai-post-install-hook
+              rules:
+                - apiGroups: [components.platform.opendatahub.io]
+                  resources: [aigateways, kserves]
+                  verbs: [get, create, patch, update]
+                - apiGroups: [apiextensions.k8s.io]
+                  resources: [customresourcedefinitions]
+                  verbs: [get, list, watch]
+                - apiGroups: [infrastructure.opendatahub.io]
+                  resources: [coreweavekubernetesengines]
+                  verbs: [get, create, patch, update]
+                - apiGroups: [gateway.networking.k8s.io]
+                  resources: [gateways]
+                  verbs: [get, create, patch, update]
+                - apiGroups: [gateway.networking.k8s.io]
+                  resources: [gatewayclasses]
+                  verbs: [get]
+                - apiGroups: [""]
+                  resources: [secrets]
+                  verbs: [get]
+                - apiGroups: [""]
+                  resources: [configmaps]
+                  verbs: [get, create, patch, update]
+                - apiGroups: [cert-manager.io]
+                  resources: [clusterissuers, certificates]
+                  verbs: [get, create, patch, update]
+                - apiGroups: [""]
+                  resources: [namespaces]
+                  resourceNames: [models-as-a-service, kuadrant-system]
+                  verbs: [get, create, patch]
+                - apiGroups: [apps]
+                  resources: [deployments]
+                  resourceNames: [authorino]
+                  verbs: [get, patch]
+                - apiGroups: [config.opendatahub.io]
+                  resources: [platforms]
+                  verbs: [get, create, patch, update]
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRoleBinding
+              metadata:
+                name: rhai-post-install-hook
+              roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: ClusterRole
+                name: rhai-post-install-hook
+              subjects:
+                - kind: ServiceAccount
+                  name: rhai-post-install-hook
+                  namespace: redhat-ods-operator
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: Role
+              metadata:
+                name: rhai-post-install-hook-cert
+                namespace: redhat-ods-applications
+              rules:
+                - apiGroups: [cert-manager.io]
+                  resources: [certificates]
+                  verbs: [get, create, patch, update]
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: RoleBinding
+              metadata:
+                name: rhai-post-install-hook-cert
+                namespace: redhat-ods-applications
+              roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: Role
+                name: rhai-post-install-hook-cert
+              subjects:
+                - kind: ServiceAccount
+                  name: rhai-post-install-hook
+                  namespace: redhat-ods-operator
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: Role
+              metadata:
+                name: rhai-post-install-hook-kuadrant
+                namespace: kuadrant-system
+              rules:
+                - apiGroups: [""]
+                  resources: [configmaps]
+                  verbs: [get, create, patch, update]
+                - apiGroups: [cert-manager.io]
+                  resources: [certificates]
+                  verbs: [get, create, patch, update]
+                - apiGroups: [operator.authorino.kuadrant.io]
+                  resources: [authorinos]
+                  resourceNames: [authorino]
+                  verbs: [get, patch, update]
+                - apiGroups: [apps]
+                  resources: [deployments]
+                  resourceNames: [authorino]
+                  verbs: [get, patch]
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: RoleBinding
+              metadata:
+                name: rhai-post-install-hook-kuadrant
+                namespace: kuadrant-system
+              roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: Role
+                name: rhai-post-install-hook-kuadrant
+              subjects:
+                - kind: ServiceAccount
+                  name: rhai-post-install-hook
+                  namespace: redhat-ods-operator
+              EOF
+
               helm upgrade --install rhaii /tmp/odh-gitops/charts/rhai-on-xks-chart \
                 --namespace "$(params.rhaii-namespace)" \
                 --take-ownership \
