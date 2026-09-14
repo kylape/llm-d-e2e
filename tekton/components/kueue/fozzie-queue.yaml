@@ -29,6 +29,5 @@ apiVersion: kueue.x-k8s.io/v1beta2
 kind: LocalQueue
 metadata:
   name: klape-llm-d-e2e
-  namespace: klape-llm-d-e2e
 spec:
   clusterQueue: klape-llm-d-e2e

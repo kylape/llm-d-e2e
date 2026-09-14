@@ -25,7 +25,8 @@ Before installing the resources in this directory, verify that the
 
 The `klape-llm-d-e2e` namespace must contain `rhai-pull-secret`. The pipeline service
 account also needs access to the inference gateway service in
-`redhat-ods-applications`, as described in `base/rbac/namespace-rbac.yaml`.
+`redhat-ods-applications`, as described in
+`components/llm-d-e2e/rbac/namespace-rbac.yaml`.
 
 ## Runner image build
 
@@ -71,11 +72,12 @@ cluster.
 
 ## Layout and installation
 
-The manifests are organized as Kustomize bases, overlays, and opt-in
-components:
+The manifests are organized as reusable components and an environment overlay:
 
-* `base/` contains the reusable runtime RBAC, Tasks, and Pipelines.
-* `overlays/klape-llm-d-e2e/` selects the namespace-specific runtime setup.
+* `components/llm-d-e2e/` contains the runtime RBAC, Tasks, and Pipelines.
+* `components/bootstrap/` contains the host-cluster bootstrap Pipeline.
+* `components/maas/` contains the MaaS install and validation Pipeline.
+* `overlays/klape-llm-d-e2e/` selects the components for this environment.
 * `components/image-build/` contains the optional runner-image build resources.
 * `components/forgejo/` contains the optional in-cluster Forgejo server.
 * `components/kueue/` contains the optional Burrito Task and Kueue queue.
@@ -83,24 +85,24 @@ components:
   Kustomize build.
 * `manifests/` contains input manifests consumed by the Tasks.
 
-The default runtime installation is rendered and applied from the Tekton
-directory:
+The default runtime installation is rendered and applied with the target
+namespace supplied on the kubectl command:
 
 ```bash
-kubectl kustomize tekton
-kubectl apply -k tekton
+kubectl kustomize tekton --namespace klape-llm-d-e2e
+kubectl apply -k tekton --namespace klape-llm-d-e2e
 ```
 
-The Kustomize overlay applies the namespace only to the runtime Tasks and
-Pipelines. The gateway-access Role and RoleBinding remain in
-`redhat-ods-applications`.
+The manifests do not embed a Tekton resource namespace. The namespace passed
+to kubectl applies to namespaced resources; guest-cluster namespaces embedded
+in Task scripts remain explicit because they are targets in the guest cluster.
 
 Optional components are applied separately after review:
 
 ```bash
-kubectl apply -k tekton/components/image-build
-kubectl apply -k tekton/components/forgejo
-kubectl apply -k tekton/components/kueue
+kubectl apply -k tekton/components/image-build --namespace klape-llm-d-e2e
+kubectl apply -k tekton/components/forgejo --namespace klape-llm-d-e2e
+kubectl apply -k tekton/components/kueue --namespace klape-llm-d-e2e
 ```
 
 ## Host-cluster bootstrap pipeline
@@ -121,7 +123,8 @@ explicitly ephemeral run.
 Install the bootstrap resources only after reviewing them:
 
 ```bash
-kubectl apply -k tekton/overlays/klape-llm-d-e2e
+kubectl apply -k tekton/overlays/klape-llm-d-e2e \
+  --namespace klape-llm-d-e2e
 ```
 
 The bootstrap example PipelineRun is intentionally not included by Kustomize.
@@ -130,7 +133,8 @@ source Secret parameters), and create the bootstrap example only after explicit
 approval:
 
 ```bash
-kubectl create -f tekton/components/bootstrap/pipelinerun.example.yaml
+kubectl create -f tekton/components/bootstrap/pipelinerun.example.yaml \
+  --namespace klape-llm-d-e2e
 ```
 
 After bootstrap succeeds, run the existing smoke pipeline against the guest

@@ -2,7 +2,6 @@ apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
   generateName: llm-d-maas-
-  namespace: klape-llm-d-e2e
 spec:
   pipelineRef:
     name: llm-d-maas-install-validate

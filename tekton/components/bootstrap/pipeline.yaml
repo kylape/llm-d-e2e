@@ -2,7 +2,6 @@ apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
   name: llm-d-e2e-host-bootstrap
-  namespace: klape-llm-d-e2e
   labels:
     app.kubernetes.io/name: llm-d-e2e
     app.kubernetes.io/component: host-bootstrap
