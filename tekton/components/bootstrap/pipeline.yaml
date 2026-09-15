@@ -492,8 +492,12 @@ spec:
                 name: kuadrant
                 namespace: kuadrant-system
               EOF
-              kubectl --kubeconfig "$KUBECONFIG" apply -k \
-                'https://github.com/Kuadrant/kuadrant-operator//config/install/configure/standard?ref=v1.5.2'
+              kubectl --kubeconfig "$KUBECONFIG" apply -f \
+                'https://raw.githubusercontent.com/Kuadrant/kuadrant-operator/v1.5.2/config/install/configure/standard/limitador.yaml'
+              kubectl --kubeconfig "$KUBECONFIG" apply -f \
+                'https://raw.githubusercontent.com/Kuadrant/kuadrant-operator/v1.5.2/config/install/configure/standard/authorino.yaml'
+              kubectl --kubeconfig "$KUBECONFIG" apply -f \
+                'https://raw.githubusercontent.com/Kuadrant/kuadrant-operator/v1.5.2/config/install/configure/standard/kuadrant.yaml'
               wait_for_crd authconfigs.authorino.kuadrant.io
               kubectl --kubeconfig "$KUBECONFIG" wait \
                 --for=condition=Available \
@@ -511,8 +515,28 @@ spec:
               kind: CoreWeaveKubernetesEngine
               metadata:
                 name: default-coreweavekubernetesengine
-              spec: {}
+              spec:
+                dependencies:
+                  certManager:
+                    managementPolicy: Unmanaged
+                    configuration: {}
+                  gatewayAPI:
+                    managementPolicy: Managed
+                    configuration: {}
+                  lws:
+                    managementPolicy: Unmanaged
+                    configuration:
+                      namespace: openshift-lws-operator
+                  sailOperator:
+                    managementPolicy: Managed
+                    configuration:
+                      namespace: istio-system
               EOF
+
+              # The CoreWeave cloud manager installs Sail Operator from the
+              # dependency declaration above. Wait for its CRD before the
+              # final RHAII Helm pass creates gateway resources.
+              wait_for_crd istios.sailoperator.io
 
               wait_for_crd platforms.config.opendatahub.io
               kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
