@@ -384,6 +384,8 @@ spec:
                 name: kuadrant
                 namespace: kuadrant-system
               EOF
+              kubectl --kubeconfig "$KUBECONFIG" apply -k \
+                'https://github.com/Kuadrant/kuadrant-operator//config/install/configure/standard?ref=v1.5.2'
               wait_for_crd authconfigs.authorino.kuadrant.io
               kubectl --kubeconfig "$KUBECONFIG" wait \
                 --for=condition=Available \
