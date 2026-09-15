@@ -4,9 +4,10 @@ metadata:
   name: llm-d-maas-install-validate
 spec:
   description: >-
-    Install the MaaS test database, deploy the CPU simulator model and MaaS
-    policy resources, and validate the resulting model catalog and readiness.
-    Resources are intentionally retained after the PipelineRun.
+    Deploy the CPU simulator model and MaaS policy resources, then validate the
+    resulting model catalog and readiness. The bootstrap pipeline provisions
+    the MaaS database before RHAII installation. Resources are intentionally
+    retained after the PipelineRun.
   params:
     - name: simulator-image
       type: string
@@ -17,114 +18,7 @@ spec:
   workspaces:
     - name: guest-kubeconfig
   tasks:
-    - name: install-database
-      taskSpec:
-        workspaces:
-          - name: guest-kubeconfig
-        steps:
-          - name: install
-            image: alpine/helm:3.19.0
-            script: |
-              #!/bin/sh
-              set -eu
-              apk add --no-cache bash ca-certificates curl openssl
-              curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
-                -o /usr/local/bin/kubectl
-              chmod +x /usr/local/bin/kubectl
-              export KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
-              maas_api_preexisting=false
-              if kubectl get deployment/maas-api \
-                --namespace redhat-ai-gateway-infra >/dev/null 2>&1; then
-                maas_api_preexisting=true
-              fi
-              kubectl create namespace redhat-ai-gateway-infra \
-                --dry-run=client -o yaml | kubectl apply -f -
-              kubectl apply -f - <<EOF
-              apiVersion: v1
-              kind: Secret
-              metadata:
-                name: postgres-creds
-                namespace: redhat-ai-gateway-infra
-              type: Opaque
-              stringData:
-                POSTGRES_USER: maas
-                POSTGRES_PASSWORD: maas-e2e-test
-                POSTGRES_DB: maas
-              ---
-              apiVersion: apps/v1
-              kind: Deployment
-              metadata:
-                name: postgres
-                namespace: redhat-ai-gateway-infra
-              spec:
-                replicas: 1
-                selector:
-                  matchLabels:
-                    app: postgres
-                template:
-                  metadata:
-                    labels:
-                      app: postgres
-                  spec:
-                    containers:
-                      - name: postgres
-                        image: registry.redhat.io/rhel9/postgresql-16:latest
-                        ports:
-                          - containerPort: 5432
-                        env:
-                          - name: POSTGRESQL_USER
-                            valueFrom:
-                              secretKeyRef:
-                                name: postgres-creds
-                                key: POSTGRES_USER
-                          - name: POSTGRESQL_PASSWORD
-                            valueFrom:
-                              secretKeyRef:
-                                name: postgres-creds
-                                key: POSTGRES_PASSWORD
-                          - name: POSTGRESQL_DATABASE
-                            valueFrom:
-                              secretKeyRef:
-                                name: postgres-creds
-                                key: POSTGRES_DB
-              ---
-              apiVersion: v1
-              kind: Service
-              metadata:
-                name: postgres
-                namespace: redhat-ai-gateway-infra
-              spec:
-                selector:
-                  app: postgres
-                ports:
-                  - port: 5432
-                    targetPort: 5432
-              ---
-              apiVersion: v1
-              kind: Secret
-              metadata:
-                name: maas-db-config
-                namespace: redhat-ai-gateway-infra
-              type: Opaque
-              stringData:
-                DB_CONNECTION_URL: postgresql://maas:maas-e2e-test@postgres.redhat-ai-gateway-infra.svc.cluster.local:5432/maas?sslmode=disable
-              EOF
-              kubectl rollout status deployment/postgres \
-                --namespace redhat-ai-gateway-infra --timeout=10m
-              if [ "$maas_api_preexisting" = true ]; then
-                kubectl rollout restart deployment/maas-api \
-                  --namespace redhat-ai-gateway-infra
-                kubectl rollout status deployment/maas-api \
-                  --namespace redhat-ai-gateway-infra --timeout=10m
-              else
-                echo "maas-api was not present before database setup; no restart needed"
-              fi
-      workspaces:
-        - name: guest-kubeconfig
-          workspace: guest-kubeconfig
-
     - name: deploy-simulator-and-policies
-      runAfter: [install-database]
       taskSpec:
         params:
           - name: simulator-image
