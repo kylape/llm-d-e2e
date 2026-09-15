@@ -189,7 +189,7 @@ spec:
                 --all-namespaces
       params:
         - name: model-name
-          value: $(params.simulator-model)
+          value: facebook-opt-125m-simulated
         - name: model-namespace
           value: llm
         - name: gateway-namespace
