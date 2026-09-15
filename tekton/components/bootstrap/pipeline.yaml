@@ -227,6 +227,13 @@ spec:
     - name: install-database
       runAfter: [prepare-guest]
       taskSpec:
+        params:
+          - name: pull-secret-name
+            type: string
+          - name: registry-auth-secret-name
+            type: string
+          - name: registry-auth-secret-namespace
+            type: string
         workspaces:
           - name: guest-kubeconfig
         steps:
@@ -240,6 +247,10 @@ spec:
                 -o /usr/local/bin/kubectl
               chmod +x /usr/local/bin/kubectl
               export KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
+              kubectl get secret "$(params.registry-auth-secret-name)" \
+                --namespace "$(params.registry-auth-secret-namespace)" \
+                -o jsonpath='{.data.\.dockerconfigjson}' | \
+                base64 -d > /tmp/rhai-pull-secret.json
               maas_api_preexisting=false
               if kubectl get deployment/maas-api \
                 --namespace redhat-ai-gateway-infra >/dev/null 2>&1; then
@@ -247,6 +258,11 @@ spec:
               fi
               kubectl create namespace redhat-ai-gateway-infra \
                 --dry-run=client -o yaml | kubectl apply -f -
+              kubectl --kubeconfig "$KUBECONFIG" -n redhat-ai-gateway-infra \
+                create secret generic "$(params.pull-secret-name)" \
+                --from-file=.dockerconfigjson=/tmp/rhai-pull-secret.json \
+                --type=kubernetes.io/dockerconfigjson --dry-run=client -o yaml | \
+                kubectl --kubeconfig "$KUBECONFIG" apply -f -
               kubectl apply -f - <<EOF
               apiVersion: v1
               kind: Secret
@@ -274,6 +290,8 @@ spec:
                     labels:
                       app: postgres
                   spec:
+                    imagePullSecrets:
+                      - name: $(params.pull-secret-name)
                     containers:
                       - name: postgres
                         image: registry.redhat.io/rhel9/postgresql-16:latest
@@ -330,6 +348,13 @@ spec:
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
+      params:
+        - name: pull-secret-name
+          value: $(params.rhaii-pull-secret-name)
+        - name: registry-auth-secret-name
+          value: $(params.registry-auth-secret-name)
+        - name: registry-auth-secret-namespace
+          value: $(params.registry-auth-secret-namespace)
 
     - name: install-rhaii
       runAfter: [prepare-guest]
