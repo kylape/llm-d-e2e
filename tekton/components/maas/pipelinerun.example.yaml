@@ -4,7 +4,7 @@ metadata:
   generateName: llm-d-maas-
 spec:
   pipelineRef:
-    name: llm-d-maas-install
+    name: llm-d-maas-install-validate
   workspaces:
     - name: guest-kubeconfig
       secret:

@@ -1,13 +1,13 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: llm-d-maas-install
+  name: llm-d-maas-install-validate
 spec:
   description: >-
-    Deploy the CPU simulator model and MaaS policy resources. The bootstrap
-    pipeline provisions the MaaS database before RHAII installation. Resources
-    are intentionally retained after the PipelineRun for a separate validation
-    PipelineRun.
+    Deploy the CPU simulator model and MaaS policy resources, then validate the
+    resulting MaaS deployment. The bootstrap pipeline provisions the MaaS
+    database before RHAII installation. Resources are intentionally retained
+    after the PipelineRun as validation fixtures.
   params:
     - name: simulator-image
       type: string
@@ -130,6 +130,70 @@ spec:
           value: $(params.simulator-image)
         - name: simulator-model
           value: $(params.simulator-model)
+      workspaces:
+        - name: guest-kubeconfig
+          workspace: guest-kubeconfig
+    - name: validate
+      runAfter: [deploy-simulator-and-policies]
+      taskSpec:
+        params:
+          - name: model-name
+            type: string
+          - name: model-namespace
+            type: string
+          - name: gateway-namespace
+            type: string
+        workspaces:
+          - name: guest-kubeconfig
+        steps:
+          - name: verify
+            image: alpine/helm:3.19.0
+            script: |
+              #!/bin/sh
+              set -eu
+              apk add --no-cache ca-certificates curl jq
+              curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
+                -o /usr/local/bin/kubectl
+              chmod +x /usr/local/bin/kubectl
+              export KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
+              MODEL="$(params.model-name)"
+              MODEL_NAMESPACE="$(params.model-namespace)"
+              GATEWAY_NAMESPACE="$(params.gateway-namespace)"
+
+              kubectl wait --for=create deployment/maas-api \
+                --namespace redhat-ai-gateway-infra --timeout=10m
+              kubectl rollout status deployment/maas-controller \
+                --namespace "$GATEWAY_NAMESPACE" --timeout=10m
+              kubectl rollout status deployment/maas-api \
+                --namespace redhat-ai-gateway-infra --timeout=10m
+              kubectl wait --for=condition=Programmed \
+                gateway/maas-default-gateway \
+                --namespace "$GATEWAY_NAMESPACE" --timeout=10m
+              kubectl wait --for=condition=Ready \
+                "llminferenceservice/$MODEL" \
+                --namespace "$MODEL_NAMESPACE" --timeout=10m
+              kubectl wait \
+                --for='jsonpath={.status.parents[0].conditions[?(@.type=="Accepted")].status}=True' \
+                "httproute/${MODEL}-kserve-route" \
+                --namespace "$MODEL_NAMESPACE" --timeout=10m
+              kubectl wait \
+                --for='jsonpath={.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status}=True' \
+                "httproute/${MODEL}-kserve-route" \
+                --namespace "$MODEL_NAMESPACE" --timeout=10m
+              kubectl wait --for=jsonpath='{.status.phase}'=Ready \
+                "maasmodelref/$MODEL" \
+                --namespace "$MODEL_NAMESPACE" --timeout=10m
+              test -n "$(kubectl get maasmodelref "$MODEL" \
+                --namespace "$MODEL_NAMESPACE" -o jsonpath='{.status.endpoint}')"
+              kubectl get maasmodelref,maassubscription,maasauthpolicy \
+                --all-namespaces
+      params:
+        - name: model-name
+          value: $(params.simulator-model)
+        - name: model-namespace
+          value: llm
+        - name: gateway-namespace
+          value: redhat-ods-applications
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig

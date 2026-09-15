@@ -3,4 +3,3 @@ kind: Kustomization
 
 resources:
   - pipeline.yaml
-  - validation-pipeline.yaml
