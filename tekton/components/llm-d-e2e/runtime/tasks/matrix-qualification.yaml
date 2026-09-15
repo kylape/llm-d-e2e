@@ -20,6 +20,7 @@ spec:
       default: 30m
   workspaces:
     - name: results
+    - name: guest-kubeconfig
   results:
     - name: test-status
       description: PASS or TEST_FAILURE or INFRASTRUCTURE_FAILURE
@@ -38,6 +39,11 @@ spec:
       script: |
         #!/usr/bin/env bash
         set -uo pipefail
+        export KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
+        if [ ! -s "$KUBECONFIG" ]; then
+          echo "guest kubeconfig is missing or empty: $KUBECONFIG" >&2
+          exit 1
+        fi
         leg_dir="$(workspaces.results.path)/$(context.taskRun.name)"
         report_dir="$leg_dir/reports"
         mkdir -p "$leg_dir"

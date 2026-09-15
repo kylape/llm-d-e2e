@@ -17,6 +17,7 @@ spec:
       description: Preserve failed-leg workloads when true.
   workspaces:
     - name: results
+    - name: guest-kubeconfig
   tasks:
     - name: qualify
       matrix:
@@ -41,3 +42,5 @@ spec:
       workspaces:
         - name: results
           workspace: results
+        - name: guest-kubeconfig
+          workspace: guest-kubeconfig

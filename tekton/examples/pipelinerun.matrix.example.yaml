@@ -24,3 +24,6 @@ spec:
           resources:
             requests:
               storage: 1Gi
+    - name: guest-kubeconfig
+      secret:
+        secretName: llm-d-e2e-guest-kubeconfig
