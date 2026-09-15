@@ -224,7 +224,7 @@ spec:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
 
-    - name: install-database
+    - name: prepare-infra-pull-secret
       runAfter: [prepare-guest]
       taskSpec:
         params:
@@ -233,6 +233,48 @@ spec:
           - name: registry-auth-secret-name
             type: string
           - name: registry-auth-secret-namespace
+            type: string
+        workspaces:
+          - name: guest-kubeconfig
+        steps:
+          - name: prepare
+            image: alpine/helm:3.19.0
+            script: |
+              #!/bin/sh
+              set -eu
+              apk add --no-cache ca-certificates curl
+              curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
+                -o /usr/local/bin/kubectl
+              chmod +x /usr/local/bin/kubectl
+              kubectl get secret "$(params.registry-auth-secret-name)" \
+                --namespace "$(params.registry-auth-secret-namespace)" \
+                -o jsonpath='{.data.\.dockerconfigjson}' | \
+                base64 -d > /tmp/rhai-pull-secret.json
+              KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
+              kubectl --kubeconfig "$KUBECONFIG" create namespace \
+                redhat-ai-gateway-infra --dry-run=client -o yaml | \
+                kubectl --kubeconfig "$KUBECONFIG" apply -f -
+              kubectl --kubeconfig "$KUBECONFIG" -n redhat-ai-gateway-infra \
+                create secret generic "$(params.pull-secret-name)" \
+                --from-file=.dockerconfigjson=/tmp/rhai-pull-secret.json \
+                --type=kubernetes.io/dockerconfigjson --dry-run=client -o yaml | \
+                kubectl --kubeconfig "$KUBECONFIG" apply -f -
+      params:
+        - name: pull-secret-name
+          value: $(params.rhaii-pull-secret-name)
+        - name: registry-auth-secret-name
+          value: $(params.registry-auth-secret-name)
+        - name: registry-auth-secret-namespace
+          value: $(params.registry-auth-secret-namespace)
+      workspaces:
+        - name: guest-kubeconfig
+          workspace: guest-kubeconfig
+
+    - name: install-database
+      runAfter: [prepare-infra-pull-secret]
+      taskSpec:
+        params:
+          - name: pull-secret-name
             type: string
         workspaces:
           - name: guest-kubeconfig
@@ -247,10 +289,6 @@ spec:
                 -o /usr/local/bin/kubectl
               chmod +x /usr/local/bin/kubectl
               export KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
-              kubectl get secret "$(params.registry-auth-secret-name)" \
-                --namespace "$(params.registry-auth-secret-namespace)" \
-                -o jsonpath='{.data.\.dockerconfigjson}' | \
-                base64 -d > /tmp/rhai-pull-secret.json
               maas_api_preexisting=false
               if kubectl get deployment/maas-api \
                 --namespace redhat-ai-gateway-infra >/dev/null 2>&1; then
@@ -258,11 +296,6 @@ spec:
               fi
               kubectl create namespace redhat-ai-gateway-infra \
                 --dry-run=client -o yaml | kubectl apply -f -
-              kubectl --kubeconfig "$KUBECONFIG" -n redhat-ai-gateway-infra \
-                create secret generic "$(params.pull-secret-name)" \
-                --from-file=.dockerconfigjson=/tmp/rhai-pull-secret.json \
-                --type=kubernetes.io/dockerconfigjson --dry-run=client -o yaml | \
-                kubectl --kubeconfig "$KUBECONFIG" apply -f -
               kubectl apply -f - <<EOF
               apiVersion: v1
               kind: Secret
@@ -351,13 +384,9 @@ spec:
       params:
         - name: pull-secret-name
           value: $(params.rhaii-pull-secret-name)
-        - name: registry-auth-secret-name
-          value: $(params.registry-auth-secret-name)
-        - name: registry-auth-secret-namespace
-          value: $(params.registry-auth-secret-namespace)
 
     - name: install-rhaii
-      runAfter: [prepare-guest]
+      runAfter: [prepare-infra-pull-secret]
       taskSpec:
         params:
           - name: rhaii-git-repository
