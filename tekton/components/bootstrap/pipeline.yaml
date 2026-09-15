@@ -712,6 +712,30 @@ spec:
               EOF
 
               kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRole
+              metadata:
+                name: maas-controller-apiserver-reader
+              rules:
+                - apiGroups: [config.openshift.io]
+                  resources: [apiservers]
+                  verbs: [get, list, watch]
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: ClusterRoleBinding
+              metadata:
+                name: maas-controller-apiserver-reader
+              roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: ClusterRole
+                name: maas-controller-apiserver-reader
+              subjects:
+                - kind: ServiceAccount
+                  name: maas-controller
+                  namespace: redhat-ods-applications
+              EOF
+
+              kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
               apiVersion: components.platform.opendatahub.io/v1alpha1
               kind: AIGateway
               metadata:
