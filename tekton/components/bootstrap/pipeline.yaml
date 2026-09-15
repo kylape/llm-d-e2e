@@ -332,7 +332,7 @@ spec:
           workspace: guest-kubeconfig
 
     - name: install-rhaii
-      runAfter: [install-database]
+      runAfter: [prepare-guest]
       taskSpec:
         params:
           - name: rhaii-git-repository
@@ -438,6 +438,12 @@ spec:
                         namespaces:
                           from: All
               EOF
+              kubectl --kubeconfig "$KUBECONFIG" wait --for=create \
+                deployment/postgres --namespace redhat-ai-gateway-infra \
+                --timeout=10m
+              kubectl --kubeconfig "$KUBECONFIG" wait \
+                --for=condition=Available deployment/postgres \
+                --namespace redhat-ai-gateway-infra --timeout=10m
               max_helm_attempts=3
               helm_attempt=1
               while :; do
