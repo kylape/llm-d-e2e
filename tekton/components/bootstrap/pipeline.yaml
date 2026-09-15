@@ -302,7 +302,7 @@ spec:
               helm repo add kuadrant https://kuadrant.io/helm-charts/ --force-update
               helm upgrade --install kuadrant-operator kuadrant/kuadrant-operator \
                 --namespace kuadrant-system --create-namespace \
-                --version 1.5.2
+                --version 1.5.2 --kubeconfig "$KUBECONFIG"
               cat > /tmp/rhaii-values.yaml <<'EOF'
               hooks:
                 postInstallCrs:
