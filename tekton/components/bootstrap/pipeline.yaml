@@ -295,6 +295,14 @@ spec:
               kubectl --kubeconfig "$KUBECONFIG" create namespace \
                 "$(params.rhaii-namespace)" --dry-run=client -o yaml | \
                 kubectl --kubeconfig "$KUBECONFIG" apply -f -
+
+              # Install Kuadrant before RHAII. The operator and its operands
+              # are installed by Helm; readiness is checked below before the
+              # second RHAII Helm pass.
+              helm repo add kuadrant https://kuadrant.io/helm-charts/ --force-update
+              helm upgrade --install kuadrant-operator kuadrant/kuadrant-operator \
+                --namespace kuadrant-system --create-namespace \
+                --version 1.5.2
               cat > /tmp/rhaii-values.yaml <<'EOF'
               hooks:
                 postInstallCrs:
@@ -363,6 +371,27 @@ spec:
                   --for=condition=established --timeout=300s \
                   "crd/${crd}"
               }
+
+              kubectl --kubeconfig "$KUBECONFIG" wait \
+                --for=condition=Available \
+                deployment/kuadrant-operator-controller-manager \
+                --namespace kuadrant-system --timeout=10m
+              wait_for_crd kuadrants.kuadrant.io
+              kubectl --kubeconfig "$KUBECONFIG" apply -f - <<'EOF'
+              apiVersion: kuadrant.io/v1beta1
+              kind: Kuadrant
+              metadata:
+                name: kuadrant
+                namespace: kuadrant-system
+              EOF
+              wait_for_crd authconfigs.authorino.kuadrant.io
+              kubectl --kubeconfig "$KUBECONFIG" wait \
+                --for=condition=Available \
+                deployment/authorino-operator --namespace kuadrant-system \
+                --timeout=10m
+              kubectl --kubeconfig "$KUBECONFIG" wait \
+                --for=condition=Available deployment/authorino \
+                --namespace kuadrant-system --timeout=10m
 
               # Apply the CRs from the chart's postInstallCrs hook explicitly.
               # The KServe CR must be created before the AIGateway CRD can be
