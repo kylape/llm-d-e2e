@@ -1,13 +1,13 @@
 apiVersion: tekton.dev/v1
 kind: Pipeline
 metadata:
-  name: llm-d-maas-install-validate
+  name: llm-d-maas-install
 spec:
   description: >-
-    Deploy the CPU simulator model and MaaS policy resources, then validate the
-    resulting model catalog and readiness. The bootstrap pipeline provisions
-    the MaaS database before RHAII installation. Resources are intentionally
-    retained after the PipelineRun.
+    Deploy the CPU simulator model and MaaS policy resources. The bootstrap
+    pipeline provisions the MaaS database before RHAII installation. Resources
+    are intentionally retained after the PipelineRun for a separate validation
+    PipelineRun.
   params:
     - name: simulator-image
       type: string
@@ -130,50 +130,6 @@ spec:
           value: $(params.simulator-image)
         - name: simulator-model
           value: $(params.simulator-model)
-      workspaces:
-        - name: guest-kubeconfig
-          workspace: guest-kubeconfig
-
-    - name: validate
-      runAfter: [deploy-simulator-and-policies]
-      taskSpec:
-        workspaces:
-          - name: guest-kubeconfig
-        steps:
-          - name: verify
-            image: alpine/helm:3.19.0
-            script: |
-              #!/bin/sh
-              set -eu
-              apk add --no-cache ca-certificates curl jq
-              curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
-                -o /usr/local/bin/kubectl
-              chmod +x /usr/local/bin/kubectl
-              export KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
-              kubectl wait --for=create deployment/maas-api \
-                --namespace redhat-ai-gateway-infra --timeout=10m
-              kubectl rollout status deployment/maas-controller \
-                --namespace redhat-ods-applications --timeout=10m
-              kubectl rollout status deployment/maas-api \
-                --namespace redhat-ai-gateway-infra --timeout=10m
-              kubectl wait --for=condition=Programmed \
-                gateway/maas-default-gateway \
-                --namespace redhat-ods-applications --timeout=10m
-              kubectl wait \
-                --for='jsonpath={.status.parents[0].conditions[?(@.type=="Accepted")].status}=True' \
-                httproute/facebook-opt-125m-simulated-kserve-route \
-                --namespace llm --timeout=10m
-              kubectl wait \
-                --for='jsonpath={.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status}=True' \
-                httproute/facebook-opt-125m-simulated-kserve-route \
-                --namespace llm --timeout=10m
-              kubectl wait --for=jsonpath='{.status.phase}'=Ready \
-                maasmodelref/facebook-opt-125m-simulated \
-                --namespace llm --timeout=10m
-              test -n "$(kubectl get maasmodelref facebook-opt-125m-simulated \
-                --namespace llm -o jsonpath='{.status.endpoint}')"
-              kubectl get maasmodelref,maassubscription,maasauthpolicy \
-                --all-namespaces
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig

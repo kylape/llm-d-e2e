@@ -1,10 +1,10 @@
 apiVersion: tekton.dev/v1
 kind: PipelineRun
 metadata:
-  generateName: llm-d-maas-
+  generateName: llm-d-maas-validate-
 spec:
   pipelineRef:
-    name: llm-d-maas-install
+    name: llm-d-maas-validate
   workspaces:
     - name: guest-kubeconfig
       secret:
