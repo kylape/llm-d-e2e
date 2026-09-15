@@ -84,9 +84,9 @@ class TestConformance:
 
     def test_06_ready(self, deployer: Deployer, tc: TestCase):
         """LLMInferenceService should become Ready."""
-        _log(f"Waiting for '{tc.name}' Ready=True")
+        _log(f"Waiting for LLMInferenceService '{tc.name}' Ready=True")
         deployer.wait_for_ready(tc, print_fn=_log)
-        _log(f"'{tc.name}' is Ready")
+        _log(f"LLMInferenceService '{tc.name}' is Ready")
 
     def test_07_health(self, pod_client: LLMClient, tc: TestCase, pod_endpoint: str):
         """Health endpoint should return 200 (direct pod access, bypasses gateway EPP)."""
