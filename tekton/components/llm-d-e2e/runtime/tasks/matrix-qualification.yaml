@@ -71,6 +71,17 @@ spec:
         kubectl apply -f "$report_dir/llmisvc.yaml"
         kubectl wait --for=condition=Ready=True \
           --timeout="$(params.readiness-timeout)" "llminferenceservice/$SERVICE_NAME" -n "$NAMESPACE" || exit 1
+        kubectl wait --for=condition=Programmed=True \
+          --timeout="$(params.readiness-timeout)" gateway/inference-gateway \
+          -n redhat-ods-applications || exit 1
+        kubectl wait \
+          --for='jsonpath={.status.parents[0].conditions[?(@.type=="Accepted")].status}=True' \
+          --timeout="$(params.readiness-timeout)" \
+          "httproute/${SERVICE_NAME}-kserve-route" -n "$NAMESPACE" || exit 1
+        kubectl wait \
+          --for='jsonpath={.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status}=True' \
+          --timeout="$(params.readiness-timeout)" \
+          "httproute/${SERVICE_NAME}-kserve-route" -n "$NAMESPACE" || exit 1
 
         model_uri="$(python -c 'import json, os; print(json.loads(os.environ["MODEL_SPEC"])["uri"])')"
         model_name="$(python -c 'import json, os; from conformance.render import model_name_for_variant; print(model_name_for_variant(json.loads(os.environ["MODEL_SPEC"])["uri"], os.environ["VLLM_IMAGE"]))')"
