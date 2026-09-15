@@ -367,6 +367,31 @@ spec:
               type: Opaque
               stringData:
                 DB_CONNECTION_URL: postgresql://maas:maas-e2e-test@postgres.redhat-ai-gateway-infra.svc.cluster.local:5432/maas?sslmode=disable
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: Role
+              metadata:
+                name: maas-api-db-secret-reader
+                namespace: redhat-ai-gateway-infra
+              rules:
+                - apiGroups: [""]
+                  resources: [secrets]
+                  resourceNames: [maas-db-config]
+                  verbs: [get]
+              ---
+              apiVersion: rbac.authorization.k8s.io/v1
+              kind: RoleBinding
+              metadata:
+                name: maas-api-db-secret-reader
+                namespace: redhat-ai-gateway-infra
+              roleRef:
+                apiGroup: rbac.authorization.k8s.io
+                kind: Role
+                name: maas-api-db-secret-reader
+              subjects:
+                - kind: ServiceAccount
+                  name: maas-api
+                  namespace: redhat-ai-gateway-infra
               EOF
               kubectl rollout status deployment/postgres \
                 --namespace redhat-ai-gateway-infra --timeout=10m
