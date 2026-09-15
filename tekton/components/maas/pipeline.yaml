@@ -159,6 +159,14 @@ spec:
               kubectl wait --for=condition=Programmed \
                 gateway/maas-default-gateway \
                 --namespace redhat-ods-applications --timeout=10m
+              kubectl wait \
+                --for='jsonpath={.status.parents[0].conditions[?(@.type=="Accepted")].status}=True' \
+                httproute/facebook-opt-125m-simulated-kserve-route \
+                --namespace llm --timeout=10m
+              kubectl wait \
+                --for='jsonpath={.status.parents[0].conditions[?(@.type=="ResolvedRefs")].status}=True' \
+                httproute/facebook-opt-125m-simulated-kserve-route \
+                --namespace llm --timeout=10m
               kubectl wait --for=jsonpath='{.status.phase}'=Ready \
                 maasmodelref/facebook-opt-125m-simulated \
                 --namespace llm --timeout=10m
