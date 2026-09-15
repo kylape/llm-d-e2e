@@ -72,7 +72,7 @@ spec:
                           protocol: TCP
                       readinessProbe:
                         httpGet:
-                          path: /ready
+                          path: /health/ready
                           port: https
                           scheme: HTTPS
                       livenessProbe:
