@@ -133,6 +133,73 @@ spec:
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
+    - name: validate-api
+      runAfter: [validate]
+      taskSpec:
+        params:
+          - name: model-name
+            type: string
+          - name: gateway-namespace
+            type: string
+        workspaces:
+          - name: guest-kubeconfig
+        steps:
+          - name: verify-api
+            image: alpine/helm:3.19.0
+            script: |
+              #!/bin/sh
+              set -eu
+              apk add --no-cache ca-certificates curl jq
+              curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
+                -o /usr/local/bin/kubectl
+              chmod +x /usr/local/bin/kubectl
+              export KUBECONFIG="$(workspaces.guest-kubeconfig.path)/config"
+              MODEL="$(params.model-name)"
+              GATEWAY_NAMESPACE="$(params.gateway-namespace)"
+              GATEWAY_ADDRESS="$(kubectl get gateway maas-default-gateway \
+                --namespace "$GATEWAY_NAMESPACE" \
+                -o jsonpath='{.status.addresses[0].value}')"
+              test -n "$GATEWAY_ADDRESS"
+              HOST="https://${GATEWAY_ADDRESS}"
+              ADMIN_TOKEN="$(kubectl config view --raw \
+                -o jsonpath='{.users[0].user.token}')"
+              test -n "$ADMIN_TOKEN"
+              KEY_NAME="$(context.pipelineRun.name)-validation-key"
+
+              API_KEY_RESPONSE="$(curl -skS \
+                -H "Authorization: Bearer ${ADMIN_TOKEN}" \
+                -H 'Content-Type: application/json' \
+                -X POST \
+                -d "{\"name\":\"${KEY_NAME}\",\"description\":\"Temporary validation key\",\"expiresIn\":\"1h\",\"subscription\":\"simulator-subscription\"}" \
+                "${HOST}/maas-api/v1/api-keys")"
+              API_KEY="$(printf '%s' "$API_KEY_RESPONSE" | jq -er '.key')"
+              test -n "$API_KEY"
+
+              MODEL_ID="$(curl -skS \
+                -H "Authorization: Bearer ${API_KEY}" \
+                "${HOST}/maas-api/v1/models" |
+                jq -er '[.data[] | select(.ready == true)][0].id')"
+              test -n "$MODEL_ID"
+
+              curl -skSf \
+                -H "Authorization: Bearer ${API_KEY}" \
+                -H 'Content-Type: application/json' \
+                -d "{\"model\":\"${MODEL_ID}\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}],\"max_tokens\":10}" \
+                "${HOST}/v1/chat/completions" >/dev/null
+
+              UNAUTHENTICATED_STATUS="$(curl -skS -o /dev/null -w '%{http_code}' \
+                -H 'Content-Type: application/json' \
+                -d "{\"model\":\"${MODEL_ID}\",\"messages\":[{\"role\":\"user\",\"content\":\"Hello\"}]}" \
+                "${HOST}/v1/chat/completions")"
+              test "$UNAUTHENTICATED_STATUS" = 401
+      params:
+        - name: model-name
+          value: facebook-opt-125m-simulated
+        - name: gateway-namespace
+          value: redhat-ods-applications
+      workspaces:
+        - name: guest-kubeconfig
+          workspace: guest-kubeconfig
     - name: validate
       runAfter: [deploy-simulator-and-policies]
       taskSpec:
