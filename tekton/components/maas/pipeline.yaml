@@ -163,6 +163,10 @@ spec:
               HOST="https://${GATEWAY_ADDRESS}"
               ADMIN_TOKEN="$(kubectl config view --raw \
                 -o jsonpath='{.users[0].user.token}')"
+              if [ -z "$ADMIN_TOKEN" ]; then
+                ADMIN_TOKEN="$(kubectl create token default \
+                  --namespace llm --duration=1h)"
+              fi
               test -n "$ADMIN_TOKEN"
               KEY_NAME="$(context.pipelineRun.name)-validation-key"
 
