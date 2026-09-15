@@ -338,7 +338,7 @@ spec:
                     --take-ownership \
                     --kubeconfig "$KUBECONFIG" --values /tmp/rhaii-values.yaml \
                     --set-file imagePullSecret.dockerConfigJson="$AUTH" \
-                    --no-hooks --debug --timeout=30m; then
+                    --no-hooks --timeout=30m; then
                   break
                 fi
                 if [ "$helm_attempt" -ge "$max_helm_attempts" ]; then
@@ -596,7 +596,7 @@ spec:
                 --take-ownership \
                 --kubeconfig "$KUBECONFIG" --values /tmp/rhaii-values.yaml \
                 --set-file imagePullSecret.dockerConfigJson="$AUTH" \
-                --debug --timeout=30m
+                --timeout=30m
 
               # The chart currently creates the Gateway with Same-namespace
               # route admission. The e2e namespace is separate, so allow
