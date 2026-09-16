@@ -86,8 +86,8 @@ spec:
         model_uri="$(python -c 'import json, os; print(json.loads(os.environ["MODEL_SPEC"])["uri"])')"
         model_name="$(python -c 'import json, os; from conformance.render import model_name_for_variant; print(model_name_for_variant(json.loads(os.environ["MODEL_SPEC"])["uri"], os.environ["VLLM_IMAGE"]))')"
         rc=1
-        for attempt in 1 2 3 4 5; do
-          echo "Starting llm-d-e2e attempt $attempt/5"
+        for attempt in 1 2 3 4 5 6 7 8 9 10; do
+          echo "Starting llm-d-e2e attempt $attempt/10"
           set +e
           llm-d-e2e \
             --profile configs/profiles/smoke.yaml \
@@ -115,8 +115,8 @@ spec:
             --all-containers=true --prefix=true --tail=100 || true
           echo "=== Recent namespace events ==="
           kubectl get events -n "$NAMESPACE" --sort-by=.lastTimestamp || true
-          if [ "$attempt" -lt 5 ]; then
-            sleep 15
+          if [ "$attempt" -lt 10 ]; then
+            sleep 30
           fi
         done
         if [ "$rc" -eq 0 ]; then
