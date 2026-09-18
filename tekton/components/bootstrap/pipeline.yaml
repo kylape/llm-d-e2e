@@ -22,10 +22,16 @@ spec:
       default: 0.36.1
     - name: vcluster-chart-repository
       type: string
-      default: https://github.com/kylape/vcluster.git
-    - name: vcluster-chart-revision
+      default: oci://quay.io/klape/charts/vcluster
+    - name: vcluster-chart-version
       type: string
-      default: combined
+      default: 0.0.1
+    - name: vcluster-chart-registry-secret-name
+      type: string
+      default: infra-vcluster-registry-auth
+    - name: vcluster-chart-registry-secret-namespace
+      type: string
+      default: klape-llm-d-e2e
     - name: vcluster-image-registry
       type: string
       default: quay.io
@@ -92,7 +98,11 @@ spec:
             type: string
           - name: vcluster-chart-repository
             type: string
-          - name: vcluster-chart-revision
+          - name: vcluster-chart-version
+            type: string
+          - name: vcluster-chart-registry-secret-name
+            type: string
+          - name: vcluster-chart-registry-secret-namespace
             type: string
           - name: vcluster-image-registry
             type: string
@@ -117,7 +127,7 @@ spec:
             script: |
               #!/bin/sh
               set -eu
-              apk add --no-cache bash ca-certificates curl git
+              apk add --no-cache bash ca-certificates curl
               curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
                 -o /usr/local/bin/kubectl
               chmod +x /usr/local/bin/kubectl
@@ -128,12 +138,19 @@ spec:
 
               HOST_NS="$(params.host-namespace)"
               NAME="$(params.vcluster-name)"
+              HELM_REGISTRY_CONFIG=/tmp/helm-registry-config.json
+              kubectl get secret "$(params.vcluster-chart-registry-secret-name)" \
+                --namespace "$(params.vcluster-chart-registry-secret-namespace)" \
+                -o jsonpath='{.data.\.dockerconfigjson}' | base64 -d > "$HELM_REGISTRY_CONFIG"
+              export HELM_REGISTRY_CONFIG
               CHART_DIR=/tmp/vcluster-chart
               rm -rf "$CHART_DIR"
-              git clone --depth=1 --branch "$(params.vcluster-chart-revision)" \
-                "$(params.vcluster-chart-repository)" "$CHART_DIR"
+              mkdir -p "$CHART_DIR"
+              helm pull "$(params.vcluster-chart-repository)" \
+                --version "$(params.vcluster-chart-version)" \
+                --untar --untardir "$CHART_DIR"
 
-              helm upgrade --install "$NAME" "$CHART_DIR/chart" \
+              helm upgrade --install "$NAME" "$CHART_DIR/vcluster" \
                 --namespace "$HOST_NS" --create-namespace \
                 --set controlPlane.statefulSet.image.registry="$(params.vcluster-image-registry)" \
                 --set controlPlane.statefulSet.image.repository="$(params.vcluster-image-repository)" \
@@ -166,8 +183,12 @@ spec:
           value: $(params.vcluster-version)
         - name: vcluster-chart-repository
           value: $(params.vcluster-chart-repository)
-        - name: vcluster-chart-revision
-          value: $(params.vcluster-chart-revision)
+        - name: vcluster-chart-version
+          value: $(params.vcluster-chart-version)
+        - name: vcluster-chart-registry-secret-name
+          value: $(params.vcluster-chart-registry-secret-name)
+        - name: vcluster-chart-registry-secret-namespace
+          value: $(params.vcluster-chart-registry-secret-namespace)
         - name: vcluster-image-registry
           value: $(params.vcluster-image-registry)
         - name: vcluster-image-repository
