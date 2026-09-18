@@ -14,6 +14,12 @@ spec:
       value: vcluster-test
     - name: vcluster-version
       value: 0.36.1
+    - name: vcluster-chart-version
+      value: 0.0.1-combined.1
+    - name: vcluster-chart-registry-secret-name
+      value: infra-vcluster-registry-auth
+    - name: vcluster-chart-registry-secret-namespace
+      value: klape-llm-d-e2e
     - name: rhaii-git-repository
       value: https://github.com/opendatahub-io/odh-gitops.git
     - name: rhaii-git-revision
