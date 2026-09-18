@@ -20,6 +20,21 @@ spec:
     - name: vcluster-version
       type: string
       default: 0.36.1
+    - name: vcluster-chart-repository
+      type: string
+      default: https://github.com/kylape/vcluster.git
+    - name: vcluster-chart-revision
+      type: string
+      default: combined
+    - name: vcluster-image-registry
+      type: string
+      default: quay.io
+    - name: vcluster-image-repository
+      type: string
+      default: klape/vcluster
+    - name: vcluster-image-tag
+      type: string
+      default: csi-capacity-debug
     - name: etcd-image-repository
       type: string
       default: etcd
@@ -75,6 +90,16 @@ spec:
             type: string
           - name: vcluster-version
             type: string
+          - name: vcluster-chart-repository
+            type: string
+          - name: vcluster-chart-revision
+            type: string
+          - name: vcluster-image-registry
+            type: string
+          - name: vcluster-image-repository
+            type: string
+          - name: vcluster-image-tag
+            type: string
           - name: etcd-image-repository
             type: string
           - name: etcd-image-registry
@@ -92,7 +117,7 @@ spec:
             script: |
               #!/bin/sh
               set -eu
-              apk add --no-cache bash ca-certificates curl
+              apk add --no-cache bash ca-certificates curl git
               curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
                 -o /usr/local/bin/kubectl
               chmod +x /usr/local/bin/kubectl
@@ -103,12 +128,16 @@ spec:
 
               HOST_NS="$(params.host-namespace)"
               NAME="$(params.vcluster-name)"
-              helm repo add loft https://charts.loft.sh
-              helm repo update
+              CHART_DIR=/tmp/vcluster-chart
+              rm -rf "$CHART_DIR"
+              git clone --depth=1 --branch "$(params.vcluster-chart-revision)" \
+                "$(params.vcluster-chart-repository)" "$CHART_DIR"
 
-              helm upgrade --install "$NAME" loft/vcluster \
+              helm upgrade --install "$NAME" "$CHART_DIR/chart" \
                 --namespace "$HOST_NS" --create-namespace \
-                --version "$(params.vcluster-version)" \
+                --set controlPlane.statefulSet.image.registry="$(params.vcluster-image-registry)" \
+                --set controlPlane.statefulSet.image.repository="$(params.vcluster-image-repository)" \
+                --set controlPlane.statefulSet.image.tag="$(params.vcluster-image-tag)" \
                 --set sync.fromHost.nodes.enabled=true \
                 --set sync.toHost.pods.enabled=true \
                 --set sync.toHost.gatewayApi.enabled=true \
@@ -135,6 +164,16 @@ spec:
           value: $(params.vcluster-name)
         - name: vcluster-version
           value: $(params.vcluster-version)
+        - name: vcluster-chart-repository
+          value: $(params.vcluster-chart-repository)
+        - name: vcluster-chart-revision
+          value: $(params.vcluster-chart-revision)
+        - name: vcluster-image-registry
+          value: $(params.vcluster-image-registry)
+        - name: vcluster-image-repository
+          value: $(params.vcluster-image-repository)
+        - name: vcluster-image-tag
+          value: $(params.vcluster-image-tag)
         - name: etcd-image-repository
           value: $(params.etcd-image-repository)
         - name: etcd-image-registry
