@@ -5,12 +5,18 @@ metadata:
   namespace: klape-dev
 spec:
   taskRunTemplate:
-    serviceAccountName: pipeline
+    serviceAccountName: llm-d-e2e-bootstrap
   pipelineRef:
     name: llm-d-e2e-host-bootstrap
   params:
-    - name: use-existing-kubeconfig
+    - name: create-inference-workspace
       value: "true"
+    - name: inference-workspace-name
+      value: maas-test
+    - name: inference-workspace-namespace
+      value: klape-dev
+    - name: inference-workspace-cluster-queue
+      value: inference-workspace-test
     - name: registry-auth-secret-name
       value: rhai-pull-secret
     - name: registry-auth-secret-namespace
@@ -19,5 +25,4 @@ spec:
       value: llm-d-e2e
   workspaces:
     - name: guest-kubeconfig
-      secret:
-        secretName: vc-maas-test-external
+      emptyDir: {}
