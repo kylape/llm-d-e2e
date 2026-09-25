@@ -25,4 +25,10 @@ spec:
       value: llm-d-e2e
   workspaces:
     - name: guest-kubeconfig
-      emptyDir: {}
+      volumeClaimTemplate:
+        spec:
+          accessModes:
+            - ReadWriteOnce
+          resources:
+            requests:
+              storage: 1Gi
