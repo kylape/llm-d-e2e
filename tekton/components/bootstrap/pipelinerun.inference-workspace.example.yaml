@@ -4,7 +4,8 @@ metadata:
   generateName: llm-d-e2e-inference-workspace-
   namespace: klape-dev
 spec:
-  serviceAccountName: pipeline
+  taskRunTemplate:
+    serviceAccountName: pipeline
   pipelineRef:
     name: llm-d-e2e-host-bootstrap
   params:
