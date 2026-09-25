@@ -90,6 +90,22 @@ spec:
         Use the kubeconfig already mounted in guest-kubeconfig instead of
         provisioning a vCluster. The PipelineRun must bind that workspace to
         an InferenceWorkspace kubeconfig Secret.
+    - name: create-inference-workspace
+      type: string
+      default: "false"
+      description: Create an InferenceWorkspace and obtain its published kubeconfig.
+    - name: inference-workspace-name
+      type: string
+      default: maas-test
+    - name: inference-workspace-namespace
+      type: string
+      default: klape-dev
+    - name: inference-workspace-cluster-queue
+      type: string
+      default: inference-workspace-test
+    - name: delete-inference-workspace
+      type: string
+      default: "false"
   workspaces:
     - name: guest-kubeconfig
       description: Generated kubeconfig for the vCluster guest.
@@ -125,6 +141,14 @@ spec:
             type: string
           - name: use-existing-kubeconfig
             type: string
+          - name: create-inference-workspace
+            type: string
+          - name: inference-workspace-name
+            type: string
+          - name: inference-workspace-namespace
+            type: string
+          - name: inference-workspace-cluster-queue
+            type: string
         workspaces:
           - name: guest-kubeconfig
         steps:
@@ -140,6 +164,40 @@ spec:
               curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
                 -o /usr/local/bin/kubectl
               chmod +x /usr/local/bin/kubectl
+              if [ "$(params.create-inference-workspace)" = "true" ]; then
+                WORKSPACE_NAME="$(params.inference-workspace-name)"
+                WORKSPACE_NAMESPACE="$(params.inference-workspace-namespace)"
+                kubectl apply -f - <<EOF
+              apiVersion: inference.redhat.com/v1alpha1
+              kind: InferenceWorkspace
+              metadata:
+                name: ${WORKSPACE_NAME}
+                namespace: ${WORKSPACE_NAMESPACE}
+              spec:
+                mode: VCluster
+                clusterQueue: $(params.inference-workspace-cluster-queue)
+              EOF
+                kubectl wait \
+                  --for='jsonpath={.status.conditions[?(@.type=="Ready")].status}=True' \
+                  "inferenceworkspace/${WORKSPACE_NAME}" \
+                  --namespace "${WORKSPACE_NAMESPACE}" --timeout=30m
+                SECRET_NAME="$(kubectl get inferenceworkspace "${WORKSPACE_NAME}" \
+                  --namespace "${WORKSPACE_NAMESPACE}" \
+                  -o jsonpath='{.status.kubeconfigSecretRef.name}')"
+                SECRET_NAMESPACE="$(kubectl get inferenceworkspace "${WORKSPACE_NAME}" \
+                  --namespace "${WORKSPACE_NAMESPACE}" \
+                  -o jsonpath='{.status.kubeconfigSecretRef.namespace}')"
+                if [ -z "${SECRET_NAMESPACE}" ]; then
+                  SECRET_NAMESPACE="${WORKSPACE_NAMESPACE}"
+                fi
+                test -n "${SECRET_NAME}"
+                kubectl get secret "${SECRET_NAME}" --namespace "${SECRET_NAMESPACE}" \
+                  -o jsonpath='{.data.config}' | base64 -d \
+                  > "$(workspaces.guest-kubeconfig.path)/config"
+                chmod 600 "$(workspaces.guest-kubeconfig.path)/config"
+                echo "Using kubeconfig from InferenceWorkspace ${WORKSPACE_NAMESPACE}/${WORKSPACE_NAME}"
+                exit 0
+              fi
               if [ "$(params.use-existing-kubeconfig)" = "true" ]; then
                 test -s "$(workspaces.guest-kubeconfig.path)/config"
                 echo "Using the existing guest kubeconfig; skipping vCluster provisioning"
@@ -217,6 +275,14 @@ spec:
           value: $(params.etcd-image-tag)
         - name: use-existing-kubeconfig
           value: $(params.use-existing-kubeconfig)
+        - name: create-inference-workspace
+          value: $(params.create-inference-workspace)
+        - name: inference-workspace-name
+          value: $(params.inference-workspace-name)
+        - name: inference-workspace-namespace
+          value: $(params.inference-workspace-namespace)
+        - name: inference-workspace-cluster-queue
+          value: $(params.inference-workspace-cluster-queue)
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
@@ -227,6 +293,8 @@ spec:
         params:
           - name: use-existing-kubeconfig
             type: string
+          - name: create-inference-workspace
+            type: string
         workspaces:
           - name: guest-kubeconfig
         steps:
@@ -235,7 +303,8 @@ spec:
             script: |
               #!/bin/sh
               set -eu
-              if [ "$(params.use-existing-kubeconfig)" = "true" ]; then
+              if [ "$(params.use-existing-kubeconfig)" = "true" ] || \
+                 [ "$(params.create-inference-workspace)" = "true" ]; then
                 echo "Using an existing workspace; skipping vCluster configuration"
                 exit 0
               fi
@@ -256,6 +325,8 @@ spec:
       params:
         - name: use-existing-kubeconfig
           value: $(params.use-existing-kubeconfig)
+        - name: create-inference-workspace
+          value: $(params.create-inference-workspace)
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
@@ -996,6 +1067,8 @@ spec:
             type: string
           - name: use-existing-kubeconfig
             type: string
+          - name: create-inference-workspace
+            type: string
         workspaces:
           - name: guest-kubeconfig
         steps:
@@ -1004,7 +1077,8 @@ spec:
             script: |
               #!/bin/sh
               set -eu
-              if [ "$(params.use-existing-kubeconfig)" = "true" ]; then
+              if [ "$(params.use-existing-kubeconfig)" = "true" ] || \
+                 [ "$(params.create-inference-workspace)" = "true" ]; then
                 echo "Using the existing guest kubeconfig; skipping publication"
                 exit 0
               fi
@@ -1022,6 +1096,8 @@ spec:
           value: $(params.kubeconfig-secret-namespace)
         - name: use-existing-kubeconfig
           value: $(params.use-existing-kubeconfig)
+        - name: create-inference-workspace
+          value: $(params.create-inference-workspace)
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
@@ -1041,6 +1117,14 @@ spec:
             type: string
           - name: use-existing-kubeconfig
             type: string
+          - name: create-inference-workspace
+            type: string
+          - name: inference-workspace-name
+            type: string
+          - name: inference-workspace-namespace
+            type: string
+          - name: delete-inference-workspace
+            type: string
         steps:
           - name: destroy
             image: alpine/helm:3.19.0
@@ -1049,6 +1133,15 @@ spec:
               set -eu
               if [ "$(params.use-existing-kubeconfig)" = "true" ]; then
                 echo "Using an existing workspace; retaining its vCluster"
+                exit 0
+              fi
+              if [ "$(params.create-inference-workspace)" = "true" ]; then
+                if [ "$(params.delete-inference-workspace)" != "true" ]; then
+                  echo "delete-inference-workspace is false; retaining the InferenceWorkspace"
+                  exit 0
+                fi
+                kubectl delete inferenceworkspace "$(params.inference-workspace-name)" \
+                  --namespace "$(params.inference-workspace-namespace)" --ignore-not-found
                 exit 0
               fi
               if [ "$(params.delete-vcluster)" != "true" ]; then
@@ -1073,3 +1166,11 @@ spec:
           value: $(params.kubeconfig-secret-namespace)
         - name: use-existing-kubeconfig
           value: $(params.use-existing-kubeconfig)
+        - name: create-inference-workspace
+          value: $(params.create-inference-workspace)
+        - name: inference-workspace-name
+          value: $(params.inference-workspace-name)
+        - name: inference-workspace-namespace
+          value: $(params.inference-workspace-namespace)
+        - name: delete-inference-workspace
+          value: $(params.delete-inference-workspace)
