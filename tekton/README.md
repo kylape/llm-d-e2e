@@ -149,6 +149,22 @@ Secret published by bootstrap. The ordinary `examples/pipelinerun.example.yaml`
 continues to target the local/in-cluster kubeconfig when the optional workspace
 is not bound.
 
+### Bootstrap an InferenceWorkspace
+
+An existing vCluster provisioned by the Inference Workspace Operator can be
+used by setting `use-existing-kubeconfig` to `"true"`. Bind the
+`guest-kubeconfig` workspace to the Secret named by the workspace's
+`status.kubeconfigSecretRef`; the bootstrap task validates that file and skips
+vCluster Helm provisioning, publication, and cleanup. The example
+`components/bootstrap/pipelinerun.inference-workspace.example.yaml` targets
+`klape-dev/maas-test` and expects a local `rhai-pull-secret` in that namespace.
+
+The bootstrap PipelineRun must run in the same namespace as both the source
+registry Secret and the InferenceWorkspace kubeconfig Secret because Tekton
+Secret workspaces cannot reference another namespace. Copy those Secrets into
+the PipelineRun namespace through the cluster's approved secret-management
+path before starting the run.
+
 The design and ownership details are documented in
 `scratchpad/proposals/llm-d-e2e-host-bootstrap/design.md` in the workspace.
 
