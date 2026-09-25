@@ -41,3 +41,5 @@ roleRef:
 subjects:
   - kind: ServiceAccount
     name: llm-d-e2e-bootstrap
+  - kind: ServiceAccount
+    name: pipeline
