@@ -157,7 +157,14 @@ used by setting `use-existing-kubeconfig` to `"true"`. Bind the
 `status.kubeconfigSecretRef`; the bootstrap task validates that file and skips
 vCluster Helm provisioning, publication, and cleanup. The example
 `components/bootstrap/pipelinerun.inference-workspace.example.yaml` targets
-`klape-dev/maas-test` and expects a local `rhai-pull-secret` in that namespace.
+`klape-dev/maas-test` and now creates the InferenceWorkspace itself. It uses an
+empty workspace, sets `create-inference-workspace` to `"true"`, waits for
+`Ready=True`, and reads the Secret named by
+`status.kubeconfigSecretRef`. Set `delete-inference-workspace` to `"true"` to
+delete the InferenceWorkspace in the PipelineRun's `finally` task.
+
+To consume a workspace that already exists, set `use-existing-kubeconfig` to
+`"true"` and bind `guest-kubeconfig` to its kubeconfig Secret instead.
 
 The bootstrap PipelineRun must run in the same namespace as both the source
 registry Secret and the InferenceWorkspace kubeconfig Secret because Tekton
