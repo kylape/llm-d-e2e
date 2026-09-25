@@ -5,7 +5,7 @@ metadata:
   namespace: klape-dev
 spec:
   taskRunTemplate:
-    serviceAccountName: llm-d-e2e-bootstrap
+    serviceAccountName: pipeline
   pipelineRef:
     name: llm-d-e2e-host-bootstrap
   params:
