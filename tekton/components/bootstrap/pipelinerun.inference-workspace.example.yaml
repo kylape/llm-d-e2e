@@ -1,0 +1,22 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: llm-d-e2e-inference-workspace-
+  namespace: klape-dev
+spec:
+  serviceAccountName: pipeline
+  pipelineRef:
+    name: llm-d-e2e-host-bootstrap
+  params:
+    - name: use-existing-kubeconfig
+      value: "true"
+    - name: registry-auth-secret-name
+      value: rhai-pull-secret
+    - name: registry-auth-secret-namespace
+      value: klape-dev
+    - name: guest-namespace
+      value: llm-d-e2e
+  workspaces:
+    - name: guest-kubeconfig
+      secret:
+        secretName: vc-maas-test-external
