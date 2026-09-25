@@ -782,6 +782,9 @@ spec:
                 --for=condition=Available \
                 deployment/authorino-operator --namespace kuadrant-system \
                 --timeout=10m
+              kubectl --kubeconfig "$KUBECONFIG" wait --for=create \
+                deployment/authorino --namespace kuadrant-system \
+                --timeout=10m
               kubectl --kubeconfig "$KUBECONFIG" wait \
                 --for=condition=Available deployment/authorino \
                 --namespace kuadrant-system --timeout=10m
