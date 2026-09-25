@@ -83,6 +83,13 @@ spec:
     - name: delete-vcluster
       type: string
       default: "false"
+    - name: use-existing-kubeconfig
+      type: string
+      default: "false"
+      description: >-
+        Use the kubeconfig already mounted in guest-kubeconfig instead of
+        provisioning a vCluster. The PipelineRun must bind that workspace to
+        an InferenceWorkspace kubeconfig Secret.
   workspaces:
     - name: guest-kubeconfig
       description: Generated kubeconfig for the vCluster guest.
@@ -116,6 +123,8 @@ spec:
             type: string
           - name: etcd-image-tag
             type: string
+          - name: use-existing-kubeconfig
+            type: string
         workspaces:
           - name: guest-kubeconfig
         steps:
@@ -131,6 +140,11 @@ spec:
               curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
                 -o /usr/local/bin/kubectl
               chmod +x /usr/local/bin/kubectl
+              if [ "$(params.use-existing-kubeconfig)" = "true" ]; then
+                test -s "$(workspaces.guest-kubeconfig.path)/config"
+                echo "Using the existing guest kubeconfig; skipping vCluster provisioning"
+                exit 0
+              fi
               curl -fsSL \
                 "https://github.com/loft-sh/vcluster/releases/download/v$(params.vcluster-version)/vcluster-linux-amd64" \
                 -o /usr/local/bin/vcluster
@@ -201,6 +215,8 @@ spec:
           value: $(params.etcd-image-registry)
         - name: etcd-image-tag
           value: $(params.etcd-image-tag)
+        - name: use-existing-kubeconfig
+          value: $(params.use-existing-kubeconfig)
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
@@ -968,6 +984,8 @@ spec:
             type: string
           - name: secret-namespace
             type: string
+          - name: use-existing-kubeconfig
+            type: string
         workspaces:
           - name: guest-kubeconfig
         steps:
@@ -976,6 +994,10 @@ spec:
             script: |
               #!/bin/sh
               set -eu
+              if [ "$(params.use-existing-kubeconfig)" = "true" ]; then
+                echo "Using the existing guest kubeconfig; skipping publication"
+                exit 0
+              fi
               apk add --no-cache ca-certificates curl
               curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
                 -o /usr/local/bin/kubectl
@@ -988,6 +1010,8 @@ spec:
           value: $(params.kubeconfig-secret-name)
         - name: secret-namespace
           value: $(params.kubeconfig-secret-namespace)
+        - name: use-existing-kubeconfig
+          value: $(params.use-existing-kubeconfig)
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
@@ -1005,12 +1029,18 @@ spec:
             type: string
           - name: kubeconfig-secret-namespace
             type: string
+          - name: use-existing-kubeconfig
+            type: string
         steps:
           - name: destroy
             image: alpine/helm:3.19.0
             script: |
               #!/bin/sh
               set -eu
+              if [ "$(params.use-existing-kubeconfig)" = "true" ]; then
+                echo "Using an existing workspace; retaining its vCluster"
+                exit 0
+              fi
               if [ "$(params.delete-vcluster)" != "true" ]; then
                 echo "delete-vcluster is false; retaining the host resources"
                 exit 0
@@ -1031,3 +1061,5 @@ spec:
           value: $(params.kubeconfig-secret-name)
         - name: kubeconfig-secret-namespace
           value: $(params.kubeconfig-secret-namespace)
+        - name: use-existing-kubeconfig
+          value: $(params.use-existing-kubeconfig)
