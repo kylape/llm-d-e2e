@@ -224,6 +224,9 @@ spec:
     - name: configure-vcluster
       runAfter: [create-vcluster]
       taskSpec:
+        params:
+          - name: use-existing-kubeconfig
+            type: string
         workspaces:
           - name: guest-kubeconfig
         steps:
@@ -232,6 +235,10 @@ spec:
             script: |
               #!/bin/sh
               set -eu
+              if [ "$(params.use-existing-kubeconfig)" = "true" ]; then
+                echo "Using an existing workspace; skipping vCluster configuration"
+                exit 0
+              fi
               apk add --no-cache ca-certificates curl
               curl -fsSL https://dl.k8s.io/release/v1.33.0/bin/linux/amd64/kubectl \
                 -o /usr/local/bin/kubectl
@@ -246,6 +253,9 @@ spec:
                 --patch '{"spec":{"template":{"spec":{"hostUsers":false}}}}'
               kubectl --kubeconfig "$KUBECONFIG" -n kube-system rollout status \
                 deployment/coredns --timeout=10m
+      params:
+        - name: use-existing-kubeconfig
+          value: $(params.use-existing-kubeconfig)
       workspaces:
         - name: guest-kubeconfig
           workspace: guest-kubeconfig
