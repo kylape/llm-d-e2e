@@ -1,0 +1,14 @@
+name: odh-core
+description: Migrated ODH llm-d tests; see docs/odh-migration.md
+testCases:
+- odh-cpu-oci
+- odh-cpu-hf
+- odh-gpu-hf
+- odh-no-scheduler
+- odh-pd
+- odh-estimated-prefix
+- odh-precise-prefix-producer
+- odh-moe
+- odh-moe-pd
+- odh-kv-offload-cpu
+- odh-kv-offload-disk
