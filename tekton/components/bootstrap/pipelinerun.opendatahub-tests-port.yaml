@@ -1,0 +1,39 @@
+apiVersion: tekton.dev/v1
+kind: PipelineRun
+metadata:
+  generateName: llm-d-e2e-opendatahub-tests-port-hooks-
+  namespace: klape-dev
+spec:
+  taskRunTemplate:
+    serviceAccountName: pipeline
+  pipelineRef:
+    name: llm-d-e2e-host-bootstrap
+  timeouts:
+    pipeline: 1h0m0s
+  params:
+    - name: use-existing-kubeconfig
+      value: "true"
+    - name: create-inference-workspace
+      value: "false"
+    - name: inference-workspace-name
+      value: opendatahub-tests-port
+    - name: inference-workspace-namespace
+      value: klape-dev
+    - name: guest-namespace
+      value: llm-d-e2e
+    - name: registry-auth-secret-name
+      value: rhai-pull-secret
+    - name: registry-auth-secret-namespace
+      value: klape-dev
+    - name: rhaii-pull-secret-name
+      value: rhai-pull-secret
+    - name: rhaii-hook-run-as-user
+      value: "null"
+    - name: delete-vcluster
+      value: "false"
+    - name: delete-inference-workspace
+      value: "false"
+  workspaces:
+    - name: guest-kubeconfig
+      secret:
+        secretName: vc-opendatahub-tests-port-external
