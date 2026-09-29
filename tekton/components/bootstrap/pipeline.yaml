@@ -52,10 +52,14 @@ spec:
       default: 3.6.8-0
     - name: rhaii-git-repository
       type: string
-      default: https://github.com/opendatahub-io/odh-gitops.git
+      default: https://github.com/kylape/odh-gitops.git
     - name: rhaii-git-revision
       type: string
-      default: af383937f4efd498a24f1128cde6a1779a70e69f
+      default: 16f2149c7121de3179b8d809467412b959ed0204
+    - name: rhaii-hook-run-as-user
+      type: string
+      default: "65534"
+      description: 'Hook container UID as JSON; use "null" for vClusters on OpenShift so host admission assigns the UID.'
     - name: rhaii-namespace
       type: string
       default: redhat-ods-operator
@@ -612,6 +616,8 @@ spec:
             type: string
           - name: rhaii-git-revision
             type: string
+          - name: rhaii-hook-run-as-user
+            type: string
           - name: rhaii-namespace
             type: string
           - name: rhaii-gateway-namespace
@@ -625,6 +631,9 @@ spec:
         steps:
           - name: install
             image: alpine/helm:3.19.0
+            env:
+              - name: RHAII_HOOK_RUN_AS_USER
+                value: $(params.rhaii-hook-run-as-user)
             script: |
               #!/bin/sh
               set -eu
@@ -725,6 +734,7 @@ spec:
                     --take-ownership \
                     --kubeconfig "$KUBECONFIG" --values /tmp/rhaii-values.yaml \
                     --set-file imagePullSecret.dockerConfigJson="$AUTH" \
+                    --set-json "hooks.runAsUser=$RHAII_HOOK_RUN_AS_USER" \
                     --no-hooks --timeout=30m; then
                   break
                 fi
@@ -1034,6 +1044,7 @@ spec:
                 --take-ownership \
                 --kubeconfig "$KUBECONFIG" --values /tmp/rhaii-values.yaml \
                 --set-file imagePullSecret.dockerConfigJson="$AUTH" \
+                --set-json "hooks.runAsUser=$RHAII_HOOK_RUN_AS_USER" \
                 --timeout=30m
 
               # The chart currently creates the Gateway with Same-namespace
@@ -1048,6 +1059,8 @@ spec:
           value: $(params.rhaii-git-repository)
         - name: rhaii-git-revision
           value: $(params.rhaii-git-revision)
+        - name: rhaii-hook-run-as-user
+          value: $(params.rhaii-hook-run-as-user)
         - name: rhaii-namespace
           value: $(params.rhaii-namespace)
         - name: rhaii-gateway-namespace
