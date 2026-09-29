@@ -1,0 +1,125 @@
+# Ported from opendatahub-tests 92a93ed7188391ec70f4c522d72ea7bbf244b4e2
+# llmd/llmd_configs/PrecisePrefixCacheProducerConfig; NVIDIA variant where applicable.
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceService
+metadata:
+  name: odh-precise-prefix-producer
+  annotations:
+    prometheus.io/port: '8000'
+    prometheus.io/path: /metrics
+    security.opendatahub.io/enable-auth: 'false'
+spec:
+  model:
+    name: TinyLlama
+    uri: oci://quay.io/opendatahub/modelcar-vllm@sha256:45e325523fb05f122f6f27b29d0fe767bc9162a90563a15150c8d4773df4265d
+  replicas: 2
+  template:
+    containers:
+    - name: main
+      resources:
+        limits:
+          cpu: '2'
+          memory: 16Gi
+          nvidia.com/gpu: '1'
+        requests:
+          cpu: '1'
+          memory: 8Gi
+          nvidia.com/gpu: '1'
+      env:
+      - name: POD_IP
+        valueFrom:
+          fieldRef:
+            apiVersion: v1
+            fieldPath: status.podIP
+      - name: MODEL_NAME
+        value: TinyLlama
+      - name: VLLM_LOGGING_LEVEL
+        value: DEBUG
+      - name: CUDA_LAUNCH_BLOCKING
+        value: '1'
+      - name: PYTHONHASHSEED
+        value: '42'
+      - name: VLLM_ADDITIONAL_ARGS
+        value: '--enable-prefix-caching --prefix-caching-hash-algo sha256_cbor --block-size 64 --kv-events-config ''{"enable_kv_cache_events":
+          true, "publisher": "zmq", "endpoint": "tcp://*:5557", "topic": "kv@$(POD_IP):8000@$(MODEL_NAME)"}'' --enable-auto-tool-choice
+          --tool-call-parser hermes'
+      startupProbe:
+        httpGet:
+          path: /health
+          port: 8000
+          scheme: HTTPS
+        initialDelaySeconds: 0
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 360
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: 8000
+          scheme: HTTPS
+        initialDelaySeconds: 3600
+        periodSeconds: 60
+        timeoutSeconds: 60
+        failureThreshold: 10
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: 8000
+          scheme: HTTPS
+        initialDelaySeconds: 0
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 360
+  router:
+    scheduler:
+      template:
+        containers:
+        - name: main
+          ports:
+          - name: grpc
+            containerPort: 9002
+            protocol: TCP
+          - name: grpc-health
+            containerPort: 9003
+            protocol: TCP
+          - name: metrics
+            containerPort: 9090
+            protocol: TCP
+          - name: zmq
+            containerPort: 5557
+            protocol: TCP
+          args:
+          - --v=4
+          - --pool-name
+          - '{{ ChildName .ObjectMeta.Name `-inference-pool` }}'
+          - --pool-namespace
+          - '{{ .ObjectMeta.Namespace }}'
+          - --pool-group
+          - inference.networking.x-k8s.io
+          - --zap-encoder
+          - json
+          - --grpc-port
+          - '9002'
+          - --grpc-health-port
+          - '9003'
+          - --secure-serving
+          - --model-server-metrics-scheme
+          - https
+          - --model-server-metrics-https-insecure-skip-verify
+          - --cert-path
+          - /var/run/kserve/tls
+          - --config-text
+          - "apiVersion: llm-d.ai/v1alpha1\nkind: EndpointPickerConfig\nplugins:\n  - type: single-profile-handler\n\
+            \  - type: token-producer\n    parameters:\n      modelName: TinyLlama\n      vllm:\n        url: https://odh-precise-prefix-producer-kserve-workload-svc.{{\
+            \ .ObjectMeta.Namespace }}.svc:8000\n  - type: endpoint-notification-source\n  - type: metrics-data-source\n\
+            \  - type: core-metrics-extractor\n  - type: precise-prefix-cache-producer\n    parameters:\n      tokenProcessorConfig:\n\
+            \        blockSize: 64\n        hashSeed: \"42\"\n      indexerConfig:\n        kvBlockIndexConfig:\n   \
+            \       enableMetrics: true\n          metricsLoggingInterval: 60000000000\n      kvEventsConfig:\n     \
+            \   topicFilter: kv\n  - type: prefix-cache-scorer\n    parameters:\n      prefixMatchInfoProducerName: precise-prefix-cache-producer\n\
+            \  - type: load-aware-scorer\n  - type: max-score-picker\ndataLayer:\n  sources:\n    - pluginRef: metrics-data-source\n\
+            \      extractors:\n        - pluginRef: core-metrics-extractor\n    - pluginRef: endpoint-notification-source\n\
+            \      extractors:\n        - pluginRef: precise-prefix-cache-producer\nschedulingProfiles:\n  - name: default\n\
+            \    plugins:\n      - pluginRef: prefix-cache-scorer\n        weight: 2.0\n      - pluginRef: load-aware-scorer\n\
+            \        weight: 1.0\n      - pluginRef: max-score-picker"
+    route: {}
+    gateway: {}
