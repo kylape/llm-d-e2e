@@ -2,7 +2,9 @@
 
 End-to-end conformance tests for [llm-d](https://github.com/llm-d) / KServe `LLMInferenceService` deployments on Kubernetes.
 
-**Guides:** [Adding a Test Case](docs/adding-a-test-case.md)
+**Guides:** [Adding a Test Case](docs/adding-a-test-case.md),
+[ODH test migration and coverage](docs/odh-migration.md),
+[Remaining framework work](docs/odh-framework-proposal.md)
 
 ## Prerequisites
 
