@@ -183,6 +183,8 @@ class DeployConfig:
     base_ref_regex: str = ""
     base_ref_accelerator: str = ""
     base_ref_topology: str = "workload-single-node"
+    base_ref_namespace: str = "redhat-ods-applications"
+    base_ref_optional: bool = False
 
 
 @dataclass
@@ -298,6 +300,14 @@ def load_testcase(path: str | Path) -> TestCase:
     with open(path) as f:
         data = yaml.safe_load(f)
     return _build(TestCase, data)
+
+
+def resolve_manifest(tc: TestCase, manifest_dir: str | Path = "deploy/manifests") -> Path:
+    """Resolve explicitly bundled manifests independently of the external checkout."""
+    path = tc.deployment.manifest_path
+    if path.startswith("bundled/"):
+        return Path(__file__).resolve().parents[2] / "configs" / "manifests" / path.removeprefix("bundled/")
+    return Path(manifest_dir) / path
 
 
 def load_profile(path: str | Path) -> TestProfile:
