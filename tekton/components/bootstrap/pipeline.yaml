@@ -55,11 +55,15 @@ spec:
       default: https://github.com/kylape/odh-gitops.git
     - name: rhaii-git-revision
       type: string
-      default: 16f2149c7121de3179b8d809467412b959ed0204
+      default: 926526fcdffbd8af4a9ea5d7e433bd2087a695ed
     - name: rhaii-hook-run-as-user
       type: string
       default: "65534"
       description: 'Hook container UID as JSON; use "null" for vClusters on OpenShift so host admission assigns the UID.'
+    - name: rhaii-gateway-host-assigned-ids
+      type: string
+      default: "false"
+      description: 'Use "true" for vClusters on OpenShift to remove fixed Istio gateway proxy UID/GID.'
     - name: rhaii-namespace
       type: string
       default: redhat-ods-operator
@@ -618,6 +622,8 @@ spec:
             type: string
           - name: rhaii-hook-run-as-user
             type: string
+          - name: rhaii-gateway-host-assigned-ids
+            type: string
           - name: rhaii-namespace
             type: string
           - name: rhaii-gateway-namespace
@@ -634,6 +640,8 @@ spec:
             env:
               - name: RHAII_HOOK_RUN_AS_USER
                 value: $(params.rhaii-hook-run-as-user)
+              - name: RHAII_GATEWAY_HOST_ASSIGNED_IDS
+                value: $(params.rhaii-gateway-host-assigned-ids)
             script: |
               #!/bin/sh
               set -eu
@@ -735,6 +743,7 @@ spec:
                     --kubeconfig "$KUBECONFIG" --values /tmp/rhaii-values.yaml \
                     --set-file imagePullSecret.dockerConfigJson="$AUTH" \
                     --set-json "hooks.runAsUser=$RHAII_HOOK_RUN_AS_USER" \
+                    --set-json "gateway.useHostAssignedIDs=$RHAII_GATEWAY_HOST_ASSIGNED_IDS" \
                     --no-hooks --timeout=30m; then
                   break
                 fi
@@ -1045,6 +1054,7 @@ spec:
                 --kubeconfig "$KUBECONFIG" --values /tmp/rhaii-values.yaml \
                 --set-file imagePullSecret.dockerConfigJson="$AUTH" \
                 --set-json "hooks.runAsUser=$RHAII_HOOK_RUN_AS_USER" \
+                --set-json "gateway.useHostAssignedIDs=$RHAII_GATEWAY_HOST_ASSIGNED_IDS" \
                 --timeout=30m
 
               # The chart currently creates the Gateway with Same-namespace
@@ -1061,6 +1071,8 @@ spec:
           value: $(params.rhaii-git-revision)
         - name: rhaii-hook-run-as-user
           value: $(params.rhaii-hook-run-as-user)
+        - name: rhaii-gateway-host-assigned-ids
+          value: $(params.rhaii-gateway-host-assigned-ids)
         - name: rhaii-namespace
           value: $(params.rhaii-namespace)
         - name: rhaii-gateway-namespace
