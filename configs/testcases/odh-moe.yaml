@@ -1,0 +1,27 @@
+name: odh-moe
+description: ODH MultinodeMoeDpEpConfig assertions (see docs/odh-migration.md for parity limits)
+labels:
+- odh-port
+model:
+  name: qwen3-moe-dummy
+  uri: hf://threcc/qwen3-moe-dummy:93b3d84e2aa41d09bcd473fb8241f6bfa0a0363b
+  cache:
+    enabled: false
+deployment:
+  manifestPath: bundled/odh-moe.yaml
+  requiresGpu: true
+  readyTimeout: 900s
+validation:
+  inferenceCheck: false
+  odh:
+    inference: true
+    expectedText: ''
+    prompt: This model reply with garbage completion.
+    topology:
+      pods: 2
+      pool: 1
+      workers: true
+      minNodes: 2
+    minGpuNodes: 2
+    gpusPerNode: 1
+cleanup: true
