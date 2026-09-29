@@ -184,7 +184,7 @@ def _list_testcases(testcase_dir: str):
         info = ref_file.read_text().strip()
         print(f"Manifests: {info}")
     else:
-        print("Manifests: not set up (run --setup <branch>)")
+        print("External manifests: not set up (run --setup <branch>); bundled cases are available")
     print()
     print("Test cases:")
     dep = Deployer()
@@ -209,7 +209,7 @@ def _list_profiles():
         info = ref_file.read_text().strip()
         print(f"Manifests: {info}")
     else:
-        print("Manifests: not set up (run --setup <branch>)")
+        print("External manifests: not set up (run --setup <branch>); bundled cases are available")
     print()
     print("Profiles:")
     for f in iter_config_yamls("configs/profiles"):
@@ -252,7 +252,6 @@ def _interactive_setup(repo: str = MANIFEST_REPO) -> str:
 
 
 def _setup_manifests(ref: str, repo: str = MANIFEST_REPO):
-    import yaml
     from datetime import datetime, timezone
 
     manifest_dir = Path("deploy/manifests")
@@ -290,17 +289,16 @@ def _setup_manifests(ref: str, repo: str = MANIFEST_REPO):
 
     print(f"Manifests ready in {manifest_dir}/ (branch: {ref}, commit: {commit[:8]})")
 
-    from conformance.config import iter_config_yamls
+    from conformance.config import iter_config_yamls, load_testcase, resolve_manifest
 
     testcase_dir = Path("configs/testcases")
     if testcase_dir.exists():
         print("\nTest cases:")
         for tc_file in iter_config_yamls(testcase_dir):
-            with open(tc_file) as fh:
-                data = yaml.safe_load(fh)
-            name = data.get("name", tc_file.stem)
-            manifest = data.get("deployment", {}).get("manifestPath", "")
-            if manifest and (manifest_dir / manifest).exists():
+            tc = load_testcase(tc_file)
+            name = tc.name or tc_file.stem
+            manifest = tc.deployment.manifest_path
+            if manifest and resolve_manifest(tc, manifest_dir).exists():
                 print(f"  \033[32m✓\033[0m {name:<28s} → {manifest}")
             else:
                 print(f"  \033[31m✗\033[0m {name:<28s} → {manifest} (missing)")
