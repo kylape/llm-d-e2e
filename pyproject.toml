@@ -10,7 +10,7 @@ dependencies = [
     "pytest-ordering>=0.6",
     "pytest-timeout>=2.3",
     "pytest-html>=4.1",
-    "openai>=3.3,<4",
+    "openai==3.3.0",
 ]
 
 [project.scripts]
