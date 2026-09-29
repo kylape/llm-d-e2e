@@ -1,0 +1,31 @@
+name: odh-precise-prefix-producer
+description: ODH PrecisePrefixCacheProducerConfig assertions (see docs/odh-migration.md for parity limits)
+labels:
+- odh-port
+model:
+  name: TinyLlama
+  uri: oci://quay.io/opendatahub/modelcar-vllm@sha256:45e325523fb05f122f6f27b29d0fe767bc9162a90563a15150c8d4773df4265d
+  cache:
+    enabled: false
+deployment:
+  manifestPath: bundled/odh-precise-prefix-producer.yaml
+  requiresGpu: true
+  readyTimeout: 720s
+validation:
+  inferenceCheck: false
+  odh:
+    prefixCache: true
+    schedulerDecisions: true
+    compatibility: true
+    inference: true
+    expectedText: rome
+    prompt: What is the capital of Italy?
+    soakSeconds: 10
+    topology:
+      pods: 2
+      pool: 2
+    blockSize: 64
+    indexDelay: 15
+    minGpuNodes: 1
+    gpusPerNode: 2
+cleanup: true
