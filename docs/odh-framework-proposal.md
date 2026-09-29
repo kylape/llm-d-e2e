@@ -57,9 +57,48 @@ testcases. Running a profile with two cases does not by itself arrange for two
 services to coexist while a test checks their interaction.
 
 Two existing options change parts of that sequence. `--mode discover` checks a
-service that already exists and preserves it afterward. `--nocleanup` leaves a
+service that already exists; the migration branch also fixes cleanup so this
+mode preserves that service afterward. `--nocleanup` leaves a
 newly deployed service in place. Neither option saves a record of the service's
 original state for a later test run to compare after an upgrade.
+
+## What the existing Jenkins upgrade pipeline does
+
+Jenkins already runs llm-d-e2e around a real RHAII platform upgrade on Azure
+Kubernetes Service (AKS). RHAII is installed as a Helm chart, a package of
+Kubernetes components. The checked-in upgrade pipeline performs this sequence:
+
+1. Provision an AKS cluster and install the starting RHAII version.
+2. Run llm-d-e2e with the starting version's profile and deployment manifests.
+3. Upgrade the RHAII Helm release in place on the same cluster.
+4. Run llm-d-e2e with the target version's profile and manifests.
+5. Archive the pre/post test reports and chart values, and delete the cluster
+   when the job's cleanup setting requests it.
+
+The job defaults to mock inference. Enabling its GPU option provisions GPU
+capacity and runs without `--mock`. Separate profile and manifest settings allow
+coverage to differ between the starting and target versions. The job definitions
+schedule upgrade runs daily; this source review does not establish which live
+builds have run or passed.
+
+This provides upgrade coverage for the installed platform and its ability to run
+conformance tests afterward. Both llm-d-e2e invocations use the normal deployment
+mode. That mode creates services and normally deletes them at the end; it also
+deletes any existing service of the same name before redeploying. The pipeline
+does not request retained services or save their pre-upgrade state.
+
+The ODH upgrade tests additionally check that the **original model services**
+keep their configuration and behavior across the upgrade. Section 5 extends the
+existing Jenkins stages with that comparison. Cluster provisioning, chart
+upgrades and report archiving are already available to reuse. The source ODH
+suites also depend on OpenShift authentication and Kueue setup; running their
+checks on AKS requires verifying those product capabilities and their setup.
+
+Sources reviewed on 2026-09-29: Jenkins
+[`62ad0ac`, upgrade pipeline](https://gitlab.cee.redhat.com/ods/jenkins/-/blob/62ad0ac23ecd3d8ff40ac7b8b553bda7bcd5f7cd/jenkinsfiles/Jenkinsfile_rhaii_on_xks_upgrade_pipeline.groovy),
+[test invocation helper](https://gitlab.cee.redhat.com/ods/jenkins/-/blob/62ad0ac23ecd3d8ff40ac7b8b553bda7bcd5f7cd/vars/runLlmDe2e.groovy),
+and [job definitions](https://gitlab.cee.redhat.com/ods/jenkins/-/blob/62ad0ac23ecd3d8ff40ac7b8b553bda7bcd5f7cd/src/io/ods/jenkins/dsl/jobs/devops/rhaii_on_xks.groovy).
+The default upstream runner was `60bf011`, also this migration's baseline.
 
 ## Why some source tests need more support
 
@@ -234,17 +273,39 @@ PVC would bypass the automatic change that these two source tests need to prove.
 
 ## 5. Check the same services before and after an upgrade
 
-An upgrade test spans two runs with a platform upgrade between them. Add explicit
-`prepare-upgrade` and `verify-upgrade` operations, connected by a saved run ID
-and a record of the original service state. Store that record in a Kubernetes
+Extend the existing Jenkins pre/post test stages with proposed
+`prepare-upgrade` and `verify-upgrade` runner operations. Connect them with a
+saved run ID and a record of the original service state. Store that record in a Kubernetes
 ConfigMap or another artifact that survives the first test process ending.
 This saved record is the **baseline** against which the post-upgrade state is
 compared.
 
 Preparation creates the service without authentication and the service with
 authentication plus Kueue. It runs the source's pre-upgrade checks and saves their
-state. A separate job then performs the operator/platform upgrade. Verification
-loads the record and reconnects to those same services to check what survived.
+state, leaving the services and their supporting objects in place. Jenkins then
+performs its existing in-place chart upgrade. Verification loads the record and
+reconnects to those same services to check what survived. An OpenShift job could
+use the same runner operations around its own platform upgrade mechanism.
+
+`--nocleanup` is useful for preparation, but the post-upgrade operation must also
+avoid deployment and its deletion of existing services. Build verification on
+the existing-service discovery path and preserve the migration branch's fix
+that prevents discover mode from deleting the service during cleanup. Add the
+saved-state comparisons and prerequisite handling; two ordinary profile runs
+do not perform them.
+
+Keep results for preserved services separate from the current post-upgrade
+conformance run, which can still exercise fresh deployments. Run preserved
+service checks before any fresh case that could reuse their names, and use
+separate names or namespaces to prevent interference. Preserve the existing
+pre/post report artifacts and add the saved baseline and comparison results.
+
+The current Jenkins pipeline continues after pre-upgrade test failures, marking
+the build unstable. The new verification step must require a complete,
+successful preparation record so failed setup cannot produce a passing survival
+check. Record and reuse one runner commit across both stages; the current helper
+clones the configured branch separately for each run. Record the resolved
+manifest revisions as well as the selected product versions.
 
 Save the unique object IDs, configuration revision (`generation`), URL, replica
 count, model address, container images, restart counts and referenced runtime
