@@ -1,0 +1,29 @@
+name: odh-pd
+description: ODH SingleNodePrefillDecodeConfig assertions (see docs/odh-migration.md for parity limits)
+labels:
+- odh-port
+model:
+  name: TinyLlama
+  uri: oci://quay.io/opendatahub/modelcar-vllm@sha256:45e325523fb05f122f6f27b29d0fe767bc9162a90563a15150c8d4773df4265d
+  cache:
+    enabled: false
+deployment:
+  manifestPath: bundled/odh-pd.yaml
+  requiresGpu: true
+  readyTimeout: 600s
+validation:
+  inferenceCheck: false
+  odh:
+    kvTransfer: true
+    compatibility: true
+    inference: true
+    expectedText: rome
+    prompt: What is the capital of Italy?
+    soakSeconds: 10
+    topology:
+      pods: 2
+      pool: 2
+      pd: true
+    minGpuNodes: 1
+    gpusPerNode: 2
+cleanup: true
