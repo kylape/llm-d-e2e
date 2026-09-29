@@ -76,11 +76,9 @@ If the user instead supplies an existing account or Secret, cleanup should leave
 it in place. The runner needs to remember which objects it created to make that
 distinction, including when a test fails halfway through setup.
 
-That is what the earlier phrase **“owned scenario resources”** meant: the
-Kubernetes objects created for a test, which that test is responsible for
-cleaning up. The sections below call this **tracking what the test creates and
-deletes**. A “scenario” simply means the whole sequence being tested, including
-its setup, requests, changes and cleanup.
+A **test scenario** includes the full sequence of setup, requests, changes and
+cleanup. Supporting these scenarios requires the runner to track what each test
+creates and delete those objects when the test finishes.
 
 Other remaining tests need additional sequences. An access-control test creates
 two services and uses different users' credentials against them. A queue test
@@ -240,7 +238,8 @@ An upgrade test spans two runs with a platform upgrade between them. Add explici
 `prepare-upgrade` and `verify-upgrade` operations, connected by a saved run ID
 and a record of the original service state. Store that record in a Kubernetes
 ConfigMap or another artifact that survives the first test process ending.
-This saved record is what the previous proposal called a **baseline**.
+This saved record is the **baseline** against which the post-upgrade state is
+compared.
 
 Preparation creates the service without authentication and the service with
 authentication plus Kueue. It runs the source's pre-upgrade checks and saves their
@@ -301,8 +300,8 @@ the routing configuration really selects.
 
 ## How to validate these changes
 
-Once the user provides cluster validation instructions, first check that the
-bundled manifests are accepted by the installed Kubernetes APIs. Run the CPU
+Begin cluster validation by checking that the bundled manifests are accepted
+by the installed Kubernetes APIs. Run the CPU
 OCI/Hugging Face tests, NVIDIA Hugging Face/no-scheduler tests and both KV offload
 cases. Follow with separate prefill/decode (P/D), exact prefix-cache checks,
 multinode Mixture of Experts (MoE), and optional fast-image variants. Isolate
