@@ -1,0 +1,25 @@
+name: odh-cpu-oci
+description: ODH TinyLlamaOciConfig assertions (see docs/odh-migration.md for parity limits)
+labels:
+- odh-port
+model:
+  name: odh-cpu-oci
+  uri: oci://quay.io/opendatahub/modelcar-vllm@sha256:45e325523fb05f122f6f27b29d0fe767bc9162a90563a15150c8d4773df4265d
+  cache:
+    enabled: false
+deployment:
+  manifestPath: bundled/odh-cpu-oci.yaml
+  requiresGpu: true
+  readyTimeout: 420s
+  baseRefRegex: ^(?!.*fast-)
+  baseRefAccelerator: ''
+  baseRefTopology: workload-single-node
+  baseRefOptional: false
+validation:
+  inferenceCheck: false
+  odh:
+    inference: true
+    expectedText: rome
+    prompt: What is the capital of Italy?
+    cpu: true
+cleanup: true
