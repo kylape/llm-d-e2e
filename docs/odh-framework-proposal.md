@@ -1,6 +1,7 @@
 # Extending llm-d-e2e to run the remaining ODH tests
 
-Date: 2026-09-29. This document proposes further changes to llm-d-e2e.
+Date: 2026-09-29. This document describes capabilities needed to share the
+remaining ODH coverage across llm-d-e2e and product test harnesses.
 The changes described below have not been implemented on `port/odh-llmd-tests`.
 
 The remaining tests need the runner to set up more things around a model and
@@ -8,6 +9,43 @@ follow what happens to them over time. Examples include two users accessing
 different models, a second model replica waiting for permission to run, and a
 model service surviving a platform upgrade. This introduction explains what the
 runner does today before describing those additions.
+
+## Architectural direction and scope
+
+The draft Testing SIG roadmap already proposes a portable `llm-d-e2e` core
+with product-specific deployment and lifecycle code in `opendatahub-tests`
+or the responsible product harness. Its milestones call for every ODH llm-d
+test to be mapped to shared assertions or a documented product responsibility,
+then for ODH to consume a pinned llm-d-e2e interface. They explicitly do not
+require duplicating ODH authentication, storage or lifecycle setup in this runner.
+
+This proposal follows that division. The six capability sections describe what
+the remaining tests need. Existing ODH fixtures can supply much of that setup;
+new standalone setup is warranted where another execution path, such as AKS,
+needs the same product coverage. Keeping a product scenario in ODH with shared
+assertions is a valid outcome. The inventory's “not ported” status describes
+this branch's implementation, not an obligation to relocate every scenario.
+
+Before expanding standalone scenario setup, define a versioned interface for
+profiles, validators and structured results, and integrate one ODH product test
+through it. Product fixtures prepare the service and supply endpoints,
+credentials and observations to shared checks. The runner's current YAML
+profiles select testcase lists; they do not yet provide the roadmap's full
+versioned configuration and evidence contract.
+
+The operating model places deployment, upgrade and cleanup coordination
+logically outside the validators, while retaining simple `deploy` mode for
+standalone use. Results need a common run ID, resolved image/model/test
+revisions, deployment path, simulator identity, ownership and failure details.
+A separate collector can preserve diagnostics after the test process fails.
+Passing a direct or simulated run must not be reported as validation of a
+supported product path.
+
+Sources: the draft [roadmap](https://github.com/kylape/llm-d-inference-engineering-docs/blob/4ac6b274fe24f174e498c5b10257b11bcb30ff82/content/sigs/testing/roadmap/_index.md),
+[milestones](https://github.com/kylape/llm-d-inference-engineering-docs/blob/4ac6b274fe24f174e498c5b10257b11bcb30ff82/content/sigs/testing/roadmap/milestones.md),
+and [operating model](https://github.com/kylape/llm-d-inference-engineering-docs/blob/4ac6b274fe24f174e498c5b10257b11bcb30ff82/content/sigs/testing/roadmap/operating-model.md),
+reviewed at `4ac6b27` on `docs/testing-sig`. These are planned boundaries and
+requirements; they are not all implemented in the current framework.
 
 ## How llm-d-e2e works today
 
@@ -131,29 +169,30 @@ The [coverage analysis](odh-migration.md) and
 variants still unported** and **61 with their checks ported but setup differences
 remaining**. A variant is one source test with a particular configuration or API
 check selected; several variants can depend on the same missing setup feature.
-The work below closes those differences and restores shared setup for other
-hardware and platform configurations.
+The capabilities below close those differences through shared checks and
+appropriate product setup, including other hardware and platform configurations.
 
-## What to add, in order
+## Where the remaining capabilities belong
 
-| Step | Change to the runner | Tests this enables or completes |
-|---|---|---|
-| 1 | Track and clean up all objects a test creates, including storage credentials | Loading models from S3 on CPU/GPU, without a scheduler, and with estimated prefix caching |
-| 2 | Keep two services running together and send requests as different users | Access-control tests and authenticated setup for 60 cache/API variants |
-| 3 | Change a running deployment and check that a replica is deliberately waiting | Kueue's replica quota test |
-| 4 | Create and check the product's model-file cache | Two LocalModelCache tests |
-| 5 | Save service state before an upgrade and check it in a later run | 38 upgrade variants |
-| 6 | Detect the installed platform and hardware, and collect useful failure evidence | AMD execution, disconnected environments, dependency checks and diagnostics |
+| Section | Capability | Implementation boundary | Tests enabled or completed |
+|---|---|---|---|
+| 1 | Track and clean up test-created objects, including storage credentials | Product fixtures or a standalone deployment adapter | S3 loading, no-scheduler and estimated prefix caching |
+| 2 | Keep two services running and send requests as different users | Product auth/service setup with reusable request checks | Access-control tests and authenticated setup for 60 cache/API variants |
+| 3 | Change a deployment and check a deliberately waiting replica | Product Kueue scenario with reusable state/inference checks | Replica quota test |
+| 4 | Create and check the product's model-file cache | Product cache fixtures and integration assertions | Two LocalModelCache tests |
+| 5 | Save service state and compare it after an upgrade | Existing upgrade harness with retained services and shared comparisons | 38 upgrade variants |
+| 6 | Detect platform/hardware and retain failure evidence | Deployment adapters, shared result metadata and external evidence collection | AMD execution, disconnected environments, prerequisites and diagnostics |
 
-Steps 1 and 2 supply setup and cleanup support that later steps reuse. Step 6 can
-proceed alongside the other work. For each completed scenario, run the source
-and migrated versions on the same product version and compare their results
-before marking it fully ported or considering removal of the source test.
+Sections 1 and 2 describe setup reused by later scenarios. They do not require
+moving that setup out of ODH. For any newly implemented standalone adapter,
+compare source and target on the same product version before marking a complete
+scenario equivalent or retiring its existing implementation.
 
 ## 1. Track what each test creates and deletes
 
-Add a per-test record of created Kubernetes objects and a cleanup function for
-each one. For the S3 example, the record would include the Secret,
+For a standalone deployment adapter that needs additional resources, add a
+per-test record of created Kubernetes objects and a cleanup function for each
+one. ODH callers can continue to use their existing resource fixtures. For the S3 example, the record would include the Secret,
 ServiceAccount and model service. Cleanup would delete the model service before
 removing the account and credentials it used.
 
@@ -183,8 +222,9 @@ that credential setup was supplied rather than exercised by the test.
 
 ## 2. Test two services with different users' credentials
 
-Let one test create service A and service B, keep both running, and choose both
-the destination service and the credentials for each request. The HTTP client
+Use the product harness to create service A and service B and keep both
+running. Shared request checks must accept both the destination service and
+the credentials for each request. The HTTP client
 needs to support requests with no token, a supplied bearer token (the credential
 sent with an HTTP request), or a ServiceAccount token that can be renewed when
 it expires. The current runner exposes one supplied bearer token for its clients.
@@ -222,8 +262,8 @@ test gives it enough quota for one model replica, then scales the service from
 one replica to two. Success means the first replica keeps serving while Kueue
 holds the second back.
 
-Add a way for a test to update the running service and wait for the resulting
-pod state. The usual runner waits for all pods to be Running. This particular
+Keep the update-and-wait sequence in the product scenario or deployment
+adapter, and expose the resulting pod state to its assertions. The usual runner waits for all pods to be Running. This particular
 test needs an explicit expectation of one running pod and one pod held by
 Kueue's scheduling gate. A pod waiting because its image cannot be downloaded
 must fail this check.
@@ -250,7 +290,7 @@ instead of downloading them again. It is different from the **KV cache** tested
 by the migrated prefix/P/D tests, which stores intermediate inference results.
 
 The source tests use `LocalModelNamespaceCache`, a Kubernetes object managed by
-a product controller. Create its prerequisites: storage credentials, a
+a product controller. The product fixtures or deployment adapter create its prerequisites: storage credentials, a
 `LocalModelNodeGroup` defining the participating nodes/storage, and any required
 persistent volume claims (PVCs), which are Kubernetes requests for storage.
 Then create the cache object and wait for the controller to download the model.
@@ -273,9 +313,11 @@ PVC would bypass the automatic change that these two source tests need to prove.
 
 ## 5. Check the same services before and after an upgrade
 
-Extend the existing Jenkins pre/post test stages with proposed
-`prepare-upgrade` and `verify-upgrade` runner operations. Connect them with a
-saved run ID and a record of the original service state. Store that record in a Kubernetes
+Extend the existing Jenkins pre/post test stages with preparation and
+verification coordinated by the product harness. Proposed `prepare-upgrade`
+and `verify-upgrade` operations can expose this sequence while reusing portable
+checks. Connect them with a saved run ID and a record of the original service
+state. Store that record in a Kubernetes
 ConfigMap or another artifact that survives the first test process ending.
 This saved record is the **baseline** against which the post-upgrade state is
 compared.
@@ -376,7 +418,7 @@ resources are cleaned up after failures and that discover mode preserves
 existing services. Local regression tests already exercise the assertion code
 with controlled inputs; they do not establish that the deployed product passes.
 
-As steps 1–5 are implemented, extend that validation to fresh S3 credential setup,
+As the shared checks and required adapters are implemented, extend validation to fresh S3 credential setup,
 two-user access control with certificate verification, queue gating, automatic
 model-file caching and a real platform upgrade. Update the inventory for each
 source variant whose full setup and checks have been reproduced and validated.
