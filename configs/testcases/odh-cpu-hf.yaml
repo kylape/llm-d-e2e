@@ -1,0 +1,25 @@
+name: odh-cpu-hf
+description: ODH TinyLlamaHfConfig assertions (see docs/odh-migration.md for parity limits)
+labels:
+- odh-port
+model:
+  name: odh-cpu-hf
+  uri: hf://TinyLlama/TinyLlama-1.1B-Chat-v1.0
+  cache:
+    enabled: false
+deployment:
+  manifestPath: bundled/odh-cpu-hf.yaml
+  requiresGpu: true
+  readyTimeout: 420s
+  baseRefRegex: ^(?!.*fast-)
+  baseRefAccelerator: ''
+  baseRefTopology: workload-single-node
+  baseRefOptional: false
+validation:
+  inferenceCheck: false
+  odh:
+    inference: true
+    expectedText: rome
+    prompt: What is the capital of Italy?
+    cpu: true
+cleanup: true
