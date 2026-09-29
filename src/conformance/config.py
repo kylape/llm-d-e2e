@@ -179,6 +179,10 @@ class DeployConfig:
     worker: bool = False
     network_attach: str = ""
     env_overrides: dict[str, str] = field(default_factory=dict)
+    # Optional product template discovery for CPU and fast-image test variants.
+    base_ref_regex: str = ""
+    base_ref_accelerator: str = ""
+    base_ref_topology: str = "workload-single-node"
 
 
 @dataclass
@@ -202,6 +206,8 @@ class ValidateConfig:
     kv_offload_fs_min_bytes: int = 1048576  # 1M
     multi_pool: MultiPoolCheck | None = None
     benchmark: BenchmarkConfig = field(default_factory=BenchmarkConfig)
+    # ODH assertions execute within the existing single-service lifecycle.
+    odh: dict = field(default_factory=dict)
 
 
 @dataclass
