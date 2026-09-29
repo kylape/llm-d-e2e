@@ -10,7 +10,7 @@ USER 0
 RUN dnf install -y \
       bash \
       ca-certificates \
-      curl \
+      curl-minimal \
       git \
       gzip \
       jq \
