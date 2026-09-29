@@ -6,6 +6,7 @@ source semantics, including optional tool production and stop-sequence behavior.
 The existing runner supplies endpoint, bearer token, and bounded request timeout;
 Kubernetes resource ownership stays in Deployer.
 """
+
 from __future__ import annotations
 
 import json
@@ -20,8 +21,12 @@ import openai
 from openai import DefaultHttpxClient, OpenAI
 from openai.types import ResponseFormatJSONObject
 from openai.types.chat import (
-    ChatCompletion, ChatCompletionAssistantMessageParam, ChatCompletionMessageToolCallParam,
-    ChatCompletionSystemMessageParam, ChatCompletionToolMessageParam, ChatCompletionToolParam,
+    ChatCompletion,
+    ChatCompletionAssistantMessageParam,
+    ChatCompletionMessageToolCallParam,
+    ChatCompletionSystemMessageParam,
+    ChatCompletionToolMessageParam,
+    ChatCompletionToolParam,
     ChatCompletionUserMessageParam,
 )
 
@@ -106,7 +111,6 @@ class OpenAICompatibilityValidator:
         "verify_error_forwarding",
     )
 
-
     TOOL_CALLING_VERIFICATIONS: tuple[str, ...] = (
         "verify_tool_calling",
         "verify_tool_calling_streaming",
@@ -114,9 +118,7 @@ class OpenAICompatibilityValidator:
         "verify_multi_turn_tool_use",
     )
 
-
     ALL_VERIFICATIONS: tuple[str, ...] = VERIFICATIONS + TOOL_CALLING_VERIFICATIONS
-
 
     def _loop_for(self, verification: str, duration: int) -> CompatSuiteResult:
         """Run a single verification in a loop for a time period."""
@@ -146,7 +148,6 @@ class OpenAICompatibilityValidator:
         LOGGER.info(f"{verification} loop done — {result.passed}/{total} passed over {duration}s")
         return result
 
-
     def _loop_for_or_raise(self, verification: str, duration: int) -> None:
         """Run a single verification in a loop, raising on any failure."""
         result = self._loop_for(verification=verification, duration=duration)
@@ -161,7 +162,6 @@ class OpenAICompatibilityValidator:
                 f"iterations failed over {duration}s — {first_error}\n\n"
                 f"Failures:\n{failure_details}\n\n{diagnostics}"
             )
-
 
     @contextmanager
     def _api_call(self, operation: str) -> Generator[None]:
@@ -206,7 +206,6 @@ class OpenAICompatibilityValidator:
                 f"  Raw body: {e.response.text[:1000] if e.response else 'N/A'}"
             ) from e
 
-
     def verify_models_endpoint(self, *, duration: int | None = None) -> None:
         if duration is not None:
             return self._loop_for_or_raise(verification="verify_models_endpoint", duration=duration)
@@ -227,7 +226,6 @@ class OpenAICompatibilityValidator:
 
         LOGGER.info(f"/v1/models returned {len(models)} model(s): {[m.id for m in models]}")
 
-
     def verify_chat_completion(self, *, duration: int | None = None) -> None:
         if duration is not None:
             return self._loop_for_or_raise(verification="verify_chat_completion", duration=duration)
@@ -244,7 +242,6 @@ class OpenAICompatibilityValidator:
             )
         self._assert_chat_completion_shape(response=response)
         LOGGER.info(f"Chat completion OK — id={response.id}, content={response.choices[0].message.content!r}")
-
 
     def verify_chat_completion_usage(self, *, duration: int | None = None) -> None:
         if duration is not None:
@@ -266,7 +263,6 @@ class OpenAICompatibilityValidator:
             f"completion_tokens={response.usage.completion_tokens}, "
             f"total_tokens={response.usage.total_tokens}"
         )
-
 
     def verify_streaming(self, *, duration: int | None = None) -> None:
         if duration is not None:
@@ -312,7 +308,6 @@ class OpenAICompatibilityValidator:
             f"No chunk contained a finish_reason — received {len(chunks)} chunks. Last chunk: {chunks[-1].model_dump()}"
         )
         LOGGER.info(f"Streaming OK — {len(chunks)} chunks, assembled text: {assembled_text!r}")
-
 
     def verify_streaming_sse_integrity(self, *, duration: int | None = None) -> None:
         if duration is not None:
@@ -376,7 +371,6 @@ class OpenAICompatibilityValidator:
             f"finish_reason='{finish_reason}', assembled {len(assembled)} chars"
         )
 
-
     def verify_system_prompt(self, *, duration: int | None = None) -> None:
         if duration is not None:
             return self._loop_for_or_raise(verification="verify_system_prompt", duration=duration)
@@ -395,7 +389,6 @@ class OpenAICompatibilityValidator:
             )
         self._assert_chat_completion_shape(response=response)
         LOGGER.info(f"System prompt OK — content={response.choices[0].message.content!r}")
-
 
     def verify_multi_turn(self, *, duration: int | None = None) -> None:
         if duration is not None:
@@ -427,7 +420,6 @@ class OpenAICompatibilityValidator:
             f"got: {content!r}. Full response: {response.model_dump()}"
         )
         LOGGER.info(f"Multi-turn OK — content={content!r}")
-
 
     def verify_json_mode(self, *, duration: int | None = None) -> None:
         if duration is not None:
@@ -464,7 +456,6 @@ class OpenAICompatibilityValidator:
         )
         LOGGER.info(f"JSON mode OK — parsed: {parsed}")
 
-
     def verify_stop_sequences(self, *, duration: int | None = None) -> None:
         if duration is not None:
             return self._loop_for_or_raise(verification="verify_stop_sequences", duration=duration)
@@ -491,7 +482,6 @@ class OpenAICompatibilityValidator:
         )
         LOGGER.info(f"Stop sequences OK — content={content!r}")
 
-
     def verify_sampling_params(self, *, duration: int | None = None) -> None:
         if duration is not None:
             return self._loop_for_or_raise(verification="verify_sampling_params", duration=duration)
@@ -509,7 +499,6 @@ class OpenAICompatibilityValidator:
             )
         self._assert_chat_completion_shape(response=response)
         LOGGER.info(f"Sampling params OK — content={response.choices[0].message.content!r}")
-
 
     def verify_max_tokens(self, *, duration: int | None = None) -> None:
         if duration is not None:
@@ -543,7 +532,6 @@ class OpenAICompatibilityValidator:
             f"got {response.usage.completion_tokens} completion tokens, "
             f"finish_reason='{response.choices[0].finish_reason}'"
         )
-
 
     def verify_logprobs(self, *, duration: int | None = None) -> None:
         if duration is not None:
@@ -581,7 +569,6 @@ class OpenAICompatibilityValidator:
             )
         LOGGER.info(f"Logprobs OK — {len(logprobs.content)} token(s) with top_logprobs")
 
-
     def verify_n_completions(self, *, duration: int | None = None) -> None:
         if duration is not None:
             return self._loop_for_or_raise(verification="verify_n_completions", duration=duration)
@@ -607,7 +594,6 @@ class OpenAICompatibilityValidator:
             assert choice.message.content, f"Choice #{i}: content is empty. Full response: {dump}"
         LOGGER.info(f"N completions OK — {n} choices: {[c.message.content for c in response.choices]}")
 
-
     def verify_seed(self, *, duration: int | None = None) -> None:
         if duration is not None:
             return self._loop_for_or_raise(verification="verify_seed", duration=duration)
@@ -628,7 +614,6 @@ class OpenAICompatibilityValidator:
             f"Seed OK — content={response.choices[0].message.content!r}, "
             f"system_fingerprint={response.system_fingerprint!r}"
         )
-
 
     def verify_error_forwarding(self, *, duration: int | None = None) -> None:
         if duration is not None:
@@ -662,7 +647,6 @@ class OpenAICompatibilityValidator:
                 f"(not a gateway error): {e.response.text[:200] if e.response else 'N/A'}"
             )
 
-
     def verify_tool_calling(self, *, duration: int | None = None) -> None:
         if duration is not None:
             return self._loop_for_or_raise(verification="verify_tool_calling", duration=duration)
@@ -690,7 +674,6 @@ class OpenAICompatibilityValidator:
             )
         else:
             LOGGER.info(f"Tool calling accepted (no tool_calls produced) — model returned text: {message.content!r}")
-
 
     def verify_tool_calling_streaming(self, *, duration: int | None = None) -> None:
         if duration is not None:
@@ -752,7 +735,6 @@ class OpenAICompatibilityValidator:
             )
             LOGGER.info(f"Tool calling streaming accepted (no tool_calls) — text: {assembled!r}")
 
-
     def verify_parallel_tool_calls(self, *, duration: int | None = None) -> None:
         if duration is not None:
             return self._loop_for_or_raise(verification="verify_parallel_tool_calls", duration=duration)
@@ -791,7 +773,6 @@ class OpenAICompatibilityValidator:
             LOGGER.info(
                 f"Parallel tool calls accepted (no tool_calls produced) — model returned text: {message.content!r}"
             )
-
 
     def verify_multi_turn_tool_use(self, *, duration: int | None = None) -> None:
         if duration is not None:
@@ -856,7 +837,6 @@ class OpenAICompatibilityValidator:
         )
         LOGGER.info(f"Multi-turn tool use OK — turn 2 response: {turn2_content!r}")
 
-
     @staticmethod
     def _assert_chat_completion_shape(response: ChatCompletion) -> None:
         dump = response.model_dump()
@@ -873,7 +853,6 @@ class OpenAICompatibilityValidator:
         assert choice.message.role == "assistant", (
             f"Expected role='assistant', got '{choice.message.role}'. Full response: {dump}"
         )
-
 
     @staticmethod
     def _assert_usage_stats(response: ChatCompletion) -> None:
@@ -892,7 +871,6 @@ class OpenAICompatibilityValidator:
             f"Full response: {dump}"
         )
 
-
     @staticmethod
     def _assert_tool_calls_shape(tool_calls: list[Any]) -> None:
         for i, tc in enumerate(tool_calls):
@@ -910,5 +888,3 @@ class OpenAICompatibilityValidator:
                     f"  raw arguments: {tc.function.arguments!r}\n"
                     f"  Full tool_call: {tc.model_dump()}"
                 ) from e
-
-
