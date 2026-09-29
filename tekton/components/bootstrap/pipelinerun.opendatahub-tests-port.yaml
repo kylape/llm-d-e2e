@@ -29,6 +29,8 @@ spec:
       value: rhai-pull-secret
     - name: rhaii-hook-run-as-user
       value: "null"
+    - name: rhaii-gateway-host-assigned-ids
+      value: "true"
     - name: delete-vcluster
       value: "false"
     - name: delete-inference-workspace
