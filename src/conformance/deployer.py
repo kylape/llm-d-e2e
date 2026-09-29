@@ -27,6 +27,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import socket
 import subprocess
 import tempfile
@@ -36,7 +37,7 @@ from pathlib import Path
 
 import yaml
 
-from conformance.config import TestCase
+from conformance.config import TestCase, resolve_manifest
 
 log = logging.getLogger(__name__)
 
@@ -165,7 +166,7 @@ class Deployer:
         Supports multi-document manifests (e.g. multi-pool, which declares several
         LLMInferenceServices separated by ``---``); non-LLMISVC documents are ignored.
         """
-        manifest_path = self.manifest_dir / tc.deployment.manifest_path
+        manifest_path = resolve_manifest(tc, self.manifest_dir)
         return [
             doc.get("spec", {}) or {}
             for doc in yaml.safe_load_all(manifest_path.read_text())
@@ -468,7 +469,7 @@ class Deployer:
         start = time.time()
         result = DeployResult(name=tc.name, namespace=self.namespace)
 
-        manifest_path = self.manifest_dir / tc.deployment.manifest_path
+        manifest_path = resolve_manifest(tc, self.manifest_dir)
         if not manifest_path.exists():
             result.error = f"Manifest not found: {manifest_path}"
             return result
@@ -838,7 +839,10 @@ class Deployer:
                 return f"https://localhost:{self._pod_pf_port}"
             self._stop_pod_port_forward()
 
-        label = WORKLOAD_LABEL.format(name=name)
+        label = (
+            f"app.kubernetes.io/name={name},"
+            "app.kubernetes.io/component in (llminferenceservice-workload,llminferenceservice-workload-leader)"
+        )
         output = self.kubectl(
             "get",
             "pods",
@@ -936,6 +940,12 @@ class Deployer:
 
         spec = manifest.get("spec", {})
 
+        if tc.deployment.base_ref_regex and not self.mock_image:
+            base_ref = self.find_base_ref(tc)
+            if not base_ref:
+                raise RuntimeError(f"No LLMInferenceServiceConfig matches {tc.deployment.base_ref_regex!r}")
+            spec["baseRefs"] = [{"name": base_ref}]
+
         if self.mock_image:
             model = spec.setdefault("model", {})
             model["name"] = tc.model.name
@@ -975,6 +985,31 @@ class Deployer:
                         env_list.append(entry)
 
         return manifest
+
+    def find_base_ref(self, tc: TestCase) -> str | None:
+        """Select the CPU/fast template using the source suite's product annotations."""
+        cfg = tc.deployment
+        items = json.loads(
+            self.kubectl("get", "llminferenceserviceconfigs", "-n", cfg.base_ref_namespace, "-o", "json")
+        )["items"]
+        matches = []
+        for item in items:
+            metadata = item["metadata"]
+            annotations = metadata.get("annotations", {})
+            accelerators = json.loads(annotations.get("opendatahub.io/recommended-accelerators", "[]"))
+            topologies = json.loads(annotations.get("opendatahub.io/supported-topologies", "[]"))
+            accelerator_matches = (
+                cfg.base_ref_accelerator in accelerators if cfg.base_ref_accelerator else not accelerators
+            )
+            if (
+                re.search(cfg.base_ref_regex, metadata["name"])
+                and accelerator_matches
+                and cfg.base_ref_topology in topologies
+            ):
+                matches.append(metadata["name"])
+        if len(matches) > 1:
+            raise ValueError(f"Ambiguous baseRef selection: {matches}; narrow deployment.baseRefRegex")
+        return matches[0] if matches else None
 
     @staticmethod
     def _pod_templates(spec: dict) -> list[dict]:
