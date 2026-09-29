@@ -1,0 +1,23 @@
+name: odh-no-scheduler
+description: ODH TinyLlamaHfGpuConfig assertions (see docs/odh-migration.md for parity limits)
+labels:
+- odh-port
+model:
+  name: TinyLlama
+  uri: hf://TinyLlama/TinyLlama-1.1B-Chat-v1.0
+  cache:
+    enabled: false
+deployment:
+  manifestPath: bundled/odh-no-scheduler.yaml
+  requiresGpu: true
+  readyTimeout: 600s
+validation:
+  inferenceCheck: false
+  odh:
+    noScheduler: true
+    inference: true
+    expectedText: rome
+    prompt: What is the capital of Italy?
+    minGpuNodes: 1
+    gpusPerNode: 1
+cleanup: true
