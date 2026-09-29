@@ -101,6 +101,32 @@ def pytest_generate_tests(metafunc):
         metafunc.parametrize("tc", cases, ids=[tc.name for tc in cases], scope="class")
 
 
+@pytest.hookimpl(hookwrapper=True, tryfirst=True)
+def pytest_collection_modifyitems(items):
+    """Keep all parametrized verifications inside their service's deploy/cleanup lifecycle.
+
+    Pytest's fixture grouping alone can interleave class-scoped ``tc`` values
+    when a method also has function-scoped parameters (the compatibility suite).
+    Sort after other collection hooks, preserving non-conformance item positions.
+    """
+    yield
+    positions = [
+        index
+        for index, item in enumerate(items)
+        if item.cls is not None
+        and item.cls.__name__ == "TestConformance"
+        and hasattr(item, "callspec")
+        and "tc" in item.callspec.params
+    ]
+    selected = [items[index] for index in positions]
+    case_order = {
+        name: index for index, name in enumerate(dict.fromkeys(item.callspec.params["tc"].name for item in selected))
+    }
+    selected.sort(key=lambda item: (case_order[item.callspec.params["tc"].name], item.originalname))
+    for index, item in zip(positions, selected, strict=True):
+        items[index] = item
+
+
 @pytest.fixture(scope="session")
 def deployer(request) -> Deployer:
     d = Deployer(
