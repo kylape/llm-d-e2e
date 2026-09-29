@@ -1,0 +1,133 @@
+# Ported from opendatahub-tests 92a93ed7188391ec70f4c522d72ea7bbf244b4e2
+# llmd/llmd_configs/SingleNodePDFast1Config; NVIDIA variant where applicable.
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceService
+metadata:
+  name: odh-pd-fast-1
+  annotations:
+    prometheus.io/port: '8000'
+    prometheus.io/path: /metrics
+    security.opendatahub.io/enable-auth: 'false'
+spec:
+  model:
+    name: TinyLlama
+    uri: oci://quay.io/opendatahub/modelcar-vllm@sha256:45e325523fb05f122f6f27b29d0fe767bc9162a90563a15150c8d4773df4265d
+  replicas: 1
+  template:
+    containers:
+    - name: main
+      resources:
+        limits:
+          cpu: '2'
+          memory: 16Gi
+          nvidia.com/gpu: '1'
+        requests:
+          cpu: '1'
+          memory: 8Gi
+          nvidia.com/gpu: '1'
+      env:
+      - name: VLLM_LOGGING_LEVEL
+        value: DEBUG
+      - name: VLLM_ADDITIONAL_ARGS
+        value: --kv_transfer_config '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}' --enable-auto-tool-choice
+          --tool-call-parser hermes
+      - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      startupProbe:
+        httpGet:
+          path: /health
+          port: 8000
+          scheme: HTTPS
+        initialDelaySeconds: 0
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 360
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: 8000
+          scheme: HTTPS
+        initialDelaySeconds: 3600
+        periodSeconds: 60
+        timeoutSeconds: 60
+        failureThreshold: 10
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: 8000
+          scheme: HTTPS
+        initialDelaySeconds: 0
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 360
+  router:
+    scheduler: {}
+    route: {}
+    gateway: {}
+  prefill:
+    replicas: 1
+    template:
+      affinity:
+        podAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: llm-d.ai/role
+                operator: In
+                values:
+                - decode
+              - key: app.kubernetes.io/name
+                operator: In
+                values:
+                - odh-pd-fast-1
+            topologyKey: kubernetes.io/hostname
+      containers:
+      - name: main
+        env:
+        - name: VLLM_LOGGING_LEVEL
+          value: DEBUG
+        - name: VLLM_ADDITIONAL_ARGS
+          value: --kv_transfer_config '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}' --enable-auto-tool-choice
+            --tool-call-parser hermes
+        - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        resources:
+          limits:
+            cpu: '2'
+            memory: 16Gi
+            nvidia.com/gpu: '1'
+          requests:
+            cpu: '1'
+            memory: 8Gi
+            nvidia.com/gpu: '1'
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTPS
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 360
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTPS
+          initialDelaySeconds: 3600
+          periodSeconds: 60
+          timeoutSeconds: 60
+          failureThreshold: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTPS
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 360
