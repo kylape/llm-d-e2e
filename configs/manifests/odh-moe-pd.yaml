@@ -1,0 +1,149 @@
+# Ported from opendatahub-tests 92a93ed7188391ec70f4c522d72ea7bbf244b4e2
+# llmd/llmd_configs/MultinodeMoeDpEpPrefillDecodeConfig; NVIDIA variant where applicable.
+apiVersion: serving.kserve.io/v1alpha2
+kind: LLMInferenceService
+metadata:
+  name: odh-moe-pd
+  annotations:
+    prometheus.io/port: '8000'
+    prometheus.io/path: /metrics
+    security.opendatahub.io/enable-auth: 'false'
+spec:
+  model:
+    name: qwen3-moe-dummy
+    uri: hf://threcc/qwen3-moe-dummy:93b3d84e2aa41d09bcd473fb8241f6bfa0a0363b
+  replicas: 1
+  template:
+    containers:
+    - name: main
+      resources:
+        limits:
+          cpu: '2'
+          memory: 64Gi
+          nvidia.com/gpu: '1'
+        requests:
+          cpu: '1'
+          memory: 32Gi
+          nvidia.com/gpu: '1'
+      env:
+      - name: VLLM_LOGGING_LEVEL
+        value: DEBUG
+      - name: VLLM_ADDITIONAL_ARGS
+        value: --kv_transfer_config '{"kv_connector":"NixlConnector","kv_role":"kv_consumer"}'
+      - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+        valueFrom:
+          fieldRef:
+            fieldPath: status.podIP
+      startupProbe:
+        httpGet:
+          path: /health
+          port: 8000
+          scheme: HTTPS
+        initialDelaySeconds: 0
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 360
+      livenessProbe:
+        httpGet:
+          path: /health
+          port: 8000
+          scheme: HTTPS
+        initialDelaySeconds: 3600
+        periodSeconds: 60
+        timeoutSeconds: 60
+        failureThreshold: 10
+      readinessProbe:
+        httpGet:
+          path: /health
+          port: 8000
+          scheme: HTTPS
+        initialDelaySeconds: 0
+        periodSeconds: 10
+        timeoutSeconds: 5
+        failureThreshold: 360
+  router:
+    scheduler: {}
+    route: {}
+    gateway: {}
+  prefill:
+    replicas: 1
+    parallelism:
+      data: 2
+      dataLocal: 1
+      expert: true
+    template:
+      containers:
+      - name: main
+        env:
+        - name: VLLM_LOGGING_LEVEL
+          value: DEBUG
+        - name: VLLM_ADDITIONAL_ARGS
+          value: --kv_transfer_config '{"kv_connector":"NixlConnector","kv_role":"kv_producer"}'
+        - name: VLLM_NIXL_SIDE_CHANNEL_HOST
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        resources:
+          limits:
+            cpu: '2'
+            memory: 64Gi
+            nvidia.com/gpu: '1'
+          requests:
+            cpu: '1'
+            memory: 32Gi
+            nvidia.com/gpu: '1'
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTPS
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 360
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTPS
+          initialDelaySeconds: 3600
+          periodSeconds: 60
+          timeoutSeconds: 60
+          failureThreshold: 10
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+            scheme: HTTPS
+          initialDelaySeconds: 0
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 360
+    worker:
+      containers:
+      - name: main
+        resources:
+          limits:
+            cpu: '2'
+            memory: 64Gi
+            nvidia.com/gpu: '1'
+          requests:
+            cpu: '1'
+            memory: 32Gi
+            nvidia.com/gpu: '1'
+  worker:
+    containers:
+    - name: main
+      resources:
+        limits:
+          cpu: '2'
+          memory: 64Gi
+          nvidia.com/gpu: '1'
+        requests:
+          cpu: '1'
+          memory: 32Gi
+          nvidia.com/gpu: '1'
+  parallelism:
+    data: 2
+    dataLocal: 1
+    expert: true
