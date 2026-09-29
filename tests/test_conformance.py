@@ -27,13 +27,20 @@ config, when the manifest is missing, or when deploy failed / discover mode):
 from __future__ import annotations
 
 import time
+import json
+import re
+
+import httpx
 from pathlib import Path
 
 import pytest
 
 from conformance.benchmark import run_benchmark
-from conformance.config import TestCase, chat_prompt_to_messages
+from conformance.config import TestCase, chat_prompt_to_messages, resolve_manifest
 from conformance.client import LLMClient
+from conformance import odh
+from conformance.odh_prompts import PD_PROMPTS
+from conformance.openai_compat import OpenAICompatibilityValidator
 from conformance.deployer import Deployer
 from conformance.metrics import (
     Scraper,
@@ -57,7 +64,7 @@ def _log(msg: str, capsys=None):
 
 
 def _require_manifest(tc: TestCase) -> None:
-    if not (_MANIFEST_DIR / tc.deployment.manifest_path).exists():
+    if not resolve_manifest(tc, _MANIFEST_DIR).exists():
         pytest.skip(f"manifest not found for this branch: {tc.deployment.manifest_path}")
 
 
@@ -96,6 +103,44 @@ def _check_threshold(name: str, value: float, min_value: float | None = None, ma
     return passed
 
 
+def _odh_options(deployer, tc, test_mode, mock_mode):
+    if not tc.validation.odh:
+        pytest.skip("ODH checks not enabled")
+    if test_mode == "cache":
+        pytest.skip("cache mode")
+    if mock_mode:
+        pytest.skip("ODH assertions require a real model runtime")
+    _require_deployed(deployer, tc, test_mode)
+    return tc.validation.odh
+
+
+def _odh_prerequisites(deployer, tc, mock_mode):
+    checks = tc.validation.odh
+    if not checks:
+        return
+    if mock_mode:
+        pytest.skip("ODH assertions require a real model runtime")
+    if checks.get("minGpuNodes") or checks.get("cpu"):
+        nodes = json.loads(deployer.kubectl("get", "nodes", "-o", "json"))["items"]
+        if checks.get("cpu"):
+            architectures = {node["metadata"].get("labels", {}).get("kubernetes.io/arch") for node in nodes}
+            if architectures == {"arm64"}:
+                pytest.skip("Source CPU inference configuration does not support ARM64")
+        else:
+            qualifying = [
+                node
+                for node in nodes
+                if int(node.get("status", {}).get("allocatable", {}).get("nvidia.com/gpu", 0)) >= checks["gpusPerNode"]
+            ]
+            if len(qualifying) < checks["minGpuNodes"]:
+                pytest.skip(f"Need {checks['minGpuNodes']} NVIDIA nodes with >= {checks['gpusPerNode']} GPUs each")
+    if tc.deployment.base_ref_regex:
+        base_ref = deployer.find_base_ref(tc)
+        if base_ref is None and tc.deployment.base_ref_optional:
+            pytest.skip(f"Optional product template {tc.deployment.base_ref_regex!r} is not installed")
+        assert base_ref, f"Missing required product template {tc.deployment.base_ref_regex!r}"
+
+
 class TestConformance:
     """Ordered conformance phases for each test case."""
 
@@ -103,6 +148,8 @@ class TestConformance:
         """LLMInferenceService CRD must be installed and manifest must exist."""
         _require_manifest(tc)
         _require_gpu(deployer, tc, mock_mode, test_mode)
+        if test_mode != "discover":
+            _odh_prerequisites(deployer, tc, mock_mode)
         found = deployer.check_crd_exists(LLMISVC_CRD)
         _log(f"CRD {LLMISVC_CRD}: {'found' if found else 'NOT FOUND'}")
         if not found:
@@ -123,6 +170,8 @@ class TestConformance:
             pytest.skip("discover mode — skipping deploy")
         _require_manifest(tc)
         _require_gpu(deployer, tc, mock_mode, test_mode)
+        if test_mode != "discover":
+            _odh_prerequisites(deployer, tc, mock_mode)
         if not deployer.check_crd_exists(LLMISVC_CRD):
             pytest.skip(f"CRD {LLMISVC_CRD} not found — cannot deploy")
         _log(f"Deploying {tc.deployment.manifest_path} as '{tc.name}'")
@@ -163,6 +212,69 @@ class TestConformance:
         _log(f"Waiting for '{tc.name}' Ready=True")
         deployer.wait_for_ready(tc, print_fn=_log)
         _log(f"'{tc.name}' is Ready")
+
+    def test_06a_odh_topology(self, deployer, tc, test_mode, mock_mode):
+        """Validate source pod roles, workers, scheduler plugins and disk volumes."""
+        checks = _odh_options(deployer, tc, test_mode, mock_mode)
+        if not any(checks.get(key) for key in ("topology", "diskVolume", "lws")):
+            pytest.skip("No topology checks for this case")
+        pods = odh.service_pods(deployer, tc.name)
+        if checks.get("topology"):
+            odh.validate_topology(pods, checks["topology"])
+        if checks.get("diskVolume"):
+            odh.validate_disk_volume(pods)
+        if checks.get("lws"):
+            items = json.loads(deployer.kubectl("get", "leaderworkersets", "-n", deployer.namespace, "-o", "json"))[
+                "items"
+            ]
+            odh.validate_lws(items, tc.name)
+
+    def test_06b_odh_prefix_cache(self, deployer, tc, test_mode, mock_mode, request):
+        """Twelve identical requests must hit one pod with exactly eleven cached blocks."""
+        checks = _odh_options(deployer, tc, test_mode, mock_mode)
+        if not checks.get("prefixCache"):
+            pytest.skip("No exact prefix cache check")
+        pods = odh.service_pods(deployer, tc.name)
+        odh.validate_topology(pods, checks["topology"])
+        scraper = request.getfixturevalue("scraper")
+        client = request.getfixturevalue("client")
+        before = odh.scrape_workloads(scraper, pods)
+        odh.prefix_traffic(client, tc.model.name, checks.get("indexDelay", 0))
+        odh.eventually(
+            lambda: odh.validate_prefix_samples(before, odh.scrape_workloads(scraper, pods), 12, checks["blockSize"])
+        )
+        if checks.get("schedulerDecisions"):
+            scheduler = odh.scheduler_pod(pods)["metadata"]["name"]
+
+            def assert_decisions():
+                logs = deployer.kubectl("logs", scheduler, "-n", deployer.namespace, "-c", "main")
+                decisions = [
+                    json.loads(line)
+                    for line in logs.splitlines()
+                    if "Selecting endpoints from candidates sorted by max score" in line
+                ]
+                assert len(decisions) >= 12, f"Expected >= 12 scheduling decisions, got {len(decisions)}"
+
+            odh.eventually(assert_decisions, timeout=90, interval=30)
+
+    def test_06c_odh_kv_transfer(self, deployer, tc, test_mode, mock_mode, request):
+        """Preserve the twenty-request source workload and exact token-source accounting."""
+        checks = _odh_options(deployer, tc, test_mode, mock_mode)
+        if not checks.get("kvTransfer"):
+            pytest.skip("No exact KV transfer check")
+        pods = odh.service_pods(deployer, tc.name)
+        odh.validate_topology(pods, checks["topology"])
+        scraper = request.getfixturevalue("scraper")
+        client = request.getfixturevalue("client")
+        before = odh.scrape_workloads(scraper, pods)
+        tokens = 0
+        for index, prompt in enumerate(PD_PROMPTS):
+            send = client.completions if index < len(PD_PROMPTS) // 2 else client.chat
+            response = send(tc.model.name, prompt, max_tokens=50, temperature=0)
+            prompt_tokens = response["usage"]["prompt_tokens"]
+            assert prompt_tokens > 0, f"Request {index} did not report prompt tokens"
+            tokens += prompt_tokens
+        odh.eventually(lambda: odh.validate_kv_samples(before, odh.scrape_workloads(scraper, pods), pods, tokens))
 
     def test_07_health(self, pod_client: LLMClient, tc: TestCase, pod_endpoint: str):
         """Health endpoint should return 200 (direct pod access, bypasses gateway EPP)."""
@@ -280,6 +392,45 @@ class TestConformance:
                 _log(f"/v1/responses response: '{output_text[:80]}...' ({tokens} tokens)")
                 assert output_text or tokens > 0, f"/v1/responses: empty response for prompt: {prompt}"
                 assert tokens > 0, f"/v1/responses: no output tokens for prompt: {prompt}"
+
+    def test_09c_odh_inference(self, deployer, tc, test_mode, mock_mode, request):
+        """Require the source answer (Rome), or non-empty output for the dummy MoE model."""
+        checks = _odh_options(deployer, tc, test_mode, mock_mode)
+        client = request.getfixturevalue("client")
+        for attempt in range(11):
+            try:
+                response = client.chat(tc.model.name, checks["prompt"], max_tokens=50, temperature=0)
+                break
+            except httpx.HTTPStatusError as exc:
+                if exc.response.status_code != 503 or attempt == 10:
+                    raise
+                time.sleep(3)
+        content = response["choices"][0]["message"]["content"]
+        assert content and content.strip(), "Empty model completion"
+        assert checks["expectedText"] in content.lower(), f"Expected {checks['expectedText']!r}, got {content!r}"
+
+    def test_09d_odh_version(self, deployer, tc, test_mode, mock_mode, request):
+        """Fast images must report a non-empty semver through the gateway."""
+        checks = _odh_options(deployer, tc, test_mode, mock_mode)
+        if not checks.get("version"):
+            pytest.skip("No fast-image version check")
+        version = request.getfixturevalue("client").version()
+        assert re.fullmatch(r"\d+\.\d+\.\d+(?:-[a-zA-Z0-9.]+)?(?:\+[a-zA-Z0-9.]+)?", version), version
+
+    @pytest.mark.parametrize("verification", OpenAICompatibilityValidator.ALL_VERIFICATIONS)
+    def test_09e_odh_openai_compat(self, deployer, tc, test_mode, mock_mode, request, verification):
+        """Run each source SDK verification separately, retaining the ten-second soak default."""
+        checks = _odh_options(deployer, tc, test_mode, mock_mode)
+        if not checks.get("compatibility"):
+            pytest.skip("No OpenAI compatibility check")
+        endpoint = request.getfixturevalue("endpoint")
+        with OpenAICompatibilityValidator(
+            endpoint,
+            tc.model.name,
+            bearer_token=request.config.getoption("--bearer-token"),
+            timeout=tc.validation.timeout.total_seconds(),
+        ) as validator:
+            getattr(validator, verification)(duration=checks.get("soakSeconds", 10))
 
     def test_10_metrics_vllm(self, deployer: Deployer, scraper: Scraper, tc: TestCase, test_mode: str):
         """vLLM metrics should show successful requests."""
