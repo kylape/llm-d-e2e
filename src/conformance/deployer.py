@@ -203,7 +203,18 @@ class Deployer:
                 int(c.get("resources", {}).get("limits", {}).get("nvidia.com/gpu", 0))
                 for c in section.get("template", {}).get("containers", [])
             ]
-            return replicas * max(limits or [0])
+            total = max(limits or [0])
+            # A DP LeaderWorkerSet has data/dataLocal pods per replica. Its
+            # headless workers have their own resource requests in spec.worker.
+            parallelism = section.get("parallelism", {})
+            if section.get("worker") and parallelism.get("data"):
+                size = int(parallelism["data"]) // max(1, int(parallelism.get("dataLocal", 1)))
+                worker_limits = [
+                    int(c.get("resources", {}).get("limits", {}).get("nvidia.com/gpu", 0))
+                    for c in section["worker"].get("containers", [])
+                ]
+                total += max(0, size - 1) * max(worker_limits or [0])
+            return replicas * total
 
         needed = 0
         for spec in self._manifest_specs(tc):
