@@ -160,7 +160,7 @@ test-profile-flow-control: ## Run flow control tests
 
 .PHONY: unittest
 unittest: ## Run smoke/unit tests (no cluster needed)
-	uv run pytest tests/test_smoke.py -v
+	uv run pytest tests/test_smoke.py tests/test_odh.py -v
 
 .PHONY: lint
 lint: ## Run ruff linter
