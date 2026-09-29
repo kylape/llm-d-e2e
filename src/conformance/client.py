@@ -46,6 +46,14 @@ class LLMClient:
         r.raise_for_status()
         return r.json()
 
+    def version(self) -> str:
+        """Return the gateway's vLLM version for fast-image compatibility checks."""
+        r = self._client.get("/version")
+        r.raise_for_status()
+        version = r.json()["version"]
+        assert isinstance(version, str) and version, "Expected a non-empty vLLM version"
+        return version
+
     def completions(self, model: str, prompt: str, max_tokens: int = 64, temperature: float = 0.1) -> dict:
         r = self._client.post(
             "/v1/completions",
