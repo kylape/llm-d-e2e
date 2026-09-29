@@ -338,6 +338,15 @@ orders the work needed to close them.
 
 ## Validation status
 
+On 2026-09-29, Python 3.14.7 local checks completed successfully:
+
+* `pytest tests/test_smoke.py tests/test_odh.py`: **89 passed** (50 existing,
+  39 migration regressions).
+* `ruff check src/ tests/` and `ruff format --check src/ tests/`: passed.
+* Complete `odh` profile: **720 phase items collected** in service lifecycle
+  order, including all 19 compatibility verifications before each cleanup.
+* `git diff --check` and CLI testcase listing: passed.
+
 Local checks cover source-equivalent assertions, intentional failure cases,
 actual SDK HTTP/SSE decoding, all bundled manifests/profile references,
 collection order, GPU accounting and discover cleanup. Cluster deployment,
