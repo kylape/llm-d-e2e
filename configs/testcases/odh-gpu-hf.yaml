@@ -1,0 +1,22 @@
+name: odh-gpu-hf
+description: ODH TinyLlamaHfGpuConfig assertions (see docs/odh-migration.md for parity limits)
+labels:
+- odh-port
+model:
+  name: TinyLlama
+  uri: hf://TinyLlama/TinyLlama-1.1B-Chat-v1.0
+  cache:
+    enabled: false
+deployment:
+  manifestPath: bundled/odh-gpu-hf.yaml
+  requiresGpu: true
+  readyTimeout: 600s
+validation:
+  inferenceCheck: false
+  odh:
+    inference: true
+    expectedText: rome
+    prompt: What is the capital of Italy?
+    minGpuNodes: 1
+    gpusPerNode: 1
+cleanup: true
