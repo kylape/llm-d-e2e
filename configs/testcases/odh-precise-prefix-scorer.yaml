@@ -1,0 +1,31 @@
+name: odh-precise-prefix-scorer
+description: ODH PrecisePrefixCacheScorerConfig assertions (see docs/odh-migration.md for parity limits)
+labels:
+- odh-port
+model:
+  name: TinyLlama/TinyLlama-1.1B-Chat-v1.0
+  uri: hf://TinyLlama/TinyLlama-1.1B-Chat-v1.0
+  cache:
+    enabled: false
+deployment:
+  manifestPath: bundled/odh-precise-prefix-scorer.yaml
+  requiresGpu: true
+  readyTimeout: 720s
+validation:
+  inferenceCheck: false
+  odh:
+    prefixCache: true
+    schedulerDecisions: true
+    compatibility: true
+    inference: true
+    expectedText: rome
+    prompt: What is the capital of Italy?
+    soakSeconds: 10
+    topology:
+      pods: 2
+      pool: 2
+    blockSize: 64
+    indexDelay: 15
+    minGpuNodes: 1
+    gpusPerNode: 2
+cleanup: true
