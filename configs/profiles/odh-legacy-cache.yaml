@@ -1,0 +1,4 @@
+name: odh-legacy-cache
+description: Migrated ODH llm-d tests; see docs/odh-migration.md
+testCases:
+- odh-precise-prefix-scorer
