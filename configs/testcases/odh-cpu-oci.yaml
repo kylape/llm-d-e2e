@@ -9,7 +9,7 @@ model:
     enabled: false
 deployment:
   manifestPath: bundled/odh-cpu-oci.yaml
-  requiresGpu: true
+  requiresGpu: false
   readyTimeout: 420s
   baseRefRegex: ^(?!.*fast-)
   baseRefAccelerator: ''
