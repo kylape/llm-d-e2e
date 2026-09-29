@@ -12,6 +12,8 @@ spec:
     # The example targets a vCluster hosted on OpenShift.
     - name: rhaii-hook-run-as-user
       value: "null"
+    - name: rhaii-gateway-host-assigned-ids
+      value: "true"
     - name: create-inference-workspace
       value: "true"
     - name: inference-workspace-name
