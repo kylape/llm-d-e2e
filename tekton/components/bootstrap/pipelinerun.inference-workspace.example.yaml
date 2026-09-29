@@ -9,6 +9,9 @@ spec:
   pipelineRef:
     name: llm-d-e2e-host-bootstrap
   params:
+    # The example targets a vCluster hosted on OpenShift.
+    - name: rhaii-hook-run-as-user
+      value: "null"
     - name: create-inference-workspace
       value: "true"
     - name: inference-workspace-name
