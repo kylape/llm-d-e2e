@@ -162,6 +162,41 @@ def test_bundled_profiles_and_manifest_identity():
             assert any("--enable-auto-tool-choice" in entry.get("value", "") for entry in env)
 
 
+def test_moe_gpu_requirements_include_workers():
+    cases = resolve_profile(load_profile("configs/profiles/odh.yaml"), "configs/testcases")
+    deployer = Deployer()
+    assert {case.name: deployer.manifest_gpu_needed(case) for case in cases if case.name.startswith("odh-moe")} == {
+        "odh-moe": 2,
+        "odh-moe-pd": 4,
+    }
+
+
+def test_discover_cleanup_preserves_the_service():
+    from test_conformance import TestConformance
+
+    case = SimpleNamespace(name="existing", cleanup=True)
+
+    def reject_cleanup(*_):
+        pytest.fail("Discover mode must not delete an existing service")
+
+    deployer = SimpleNamespace(cleanup=reject_cleanup)
+    with pytest.raises(pytest.skip.Exception, match="preserving"):
+        TestConformance().test_99_cleanup(deployer, case, False, "discover")
+
+
+def test_inventory_matches_bundled_targets_and_registered_verifications():
+    from pathlib import Path
+
+    rows = json.loads(Path("docs/odh-migration-inventory.json").read_text())["tests"]
+    cases = {case.name for case in resolve_profile(load_profile("configs/profiles/odh.yaml"), "configs/testcases")}
+    assert len(rows) == len({row["source"] for row in rows}) == 233
+    assert {row["testcase"] for row in rows if row["testcase"]} == cases
+    assert {row["verification"] for row in rows if row["verification"]} == set(
+        OpenAICompatibilityValidator.ALL_VERIFICATIONS
+    )
+    assert all(row["status"] == "not-ported" or row["testcase"] in cases for row in rows)
+
+
 def test_base_ref_selection_filters_annotations_and_rejects_ambiguity(monkeypatch):
     case = resolve_profile(load_profile("configs/profiles/odh-fast.yaml"), "configs/testcases")[0]
     deployer = Deployer()
