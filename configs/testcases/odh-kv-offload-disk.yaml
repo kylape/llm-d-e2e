@@ -1,0 +1,23 @@
+name: odh-kv-offload-disk
+description: ODH KvCacheDiskOffloadConfig assertions (see docs/odh-migration.md for parity limits)
+labels:
+- odh-port
+model:
+  name: TinyLlama
+  uri: oci://quay.io/opendatahub/modelcar-vllm@sha256:45e325523fb05f122f6f27b29d0fe767bc9162a90563a15150c8d4773df4265d
+  cache:
+    enabled: false
+deployment:
+  manifestPath: bundled/odh-kv-offload-disk.yaml
+  requiresGpu: true
+  readyTimeout: 600s
+validation:
+  inferenceCheck: false
+  odh:
+    diskVolume: true
+    inference: true
+    expectedText: rome
+    prompt: What is the capital of Italy?
+    minGpuNodes: 1
+    gpusPerNode: 1
+cleanup: true
