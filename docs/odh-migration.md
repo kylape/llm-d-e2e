@@ -53,6 +53,38 @@ current upgrade coverage. The earlier consolidation baseline describes Tekton
 and rendering modules that are absent from this target checkout. The source
 code and pinned commits above determine this analysis.
 
+## Existing Jenkins upgrade coverage
+
+The scratchpad's `proposals/jenkins-konflux-migration/pipeline-assessment.md`
+identifies an existing RHAII-on-AKS upgrade flow. Reviewing fetched Jenkins
+`origin/master` at `62ad0ac23ecd3d8ff40ac7b8b553bda7bcd5f7cd` confirms that it
+provisions AKS, installs the starting RHAII Helm chart, runs llm-d-e2e, upgrades
+the chart in place, and runs llm-d-e2e again. It archives pre/post reports and
+chart values and supports cluster cleanup. Upgrade job definitions default to
+mock inference, with GPU execution available through the job parameters.
+
+The helper defaults to upstream llm-d-e2e `main` (fetched at target baseline
+`60bf011`), version-specific profiles and version-specific external manifest
+branches. Both runs use the default deployment lifecycle, without `--nocleanup`
+or `--mode discover`. Normal cleanup deletes model services, and deployment
+also deletes an existing service before recreating it. The current pipeline
+therefore exercises an actual platform upgrade and conformance on each side,
+while the ODH suites additionally require retained model services and saved
+state to prove their configuration and behavior survived the upgrade.
+
+The **38 ODH upgrade variants remain unported** because the runner lacks that
+saved-state comparison and its integration with the existing pre/post stages,
+including the authenticated/Kueue service setup. The platform upgrade step
+already exists in Jenkins. The [framework proposal](odh-framework-proposal.md)
+describes extending it. The AKS Helm path and the source OpenShift upgrade path
+also require platform-specific prerequisite checks before claiming parity.
+This review inspected current repository definitions, without querying live
+Jenkins build results or running an upgrade.
+
+Primary sources: [upgrade pipeline](https://gitlab.cee.redhat.com/ods/jenkins/-/blob/62ad0ac23ecd3d8ff40ac7b8b553bda7bcd5f7cd/jenkinsfiles/Jenkinsfile_rhaii_on_xks_upgrade_pipeline.groovy),
+[runner invocation](https://gitlab.cee.redhat.com/ods/jenkins/-/blob/62ad0ac23ecd3d8ff40ac7b8b553bda7bcd5f7cd/vars/runLlmDe2e.groovy),
+and [job definitions](https://gitlab.cee.redhat.com/ods/jenkins/-/blob/62ad0ac23ecd3d8ff40ac7b8b553bda7bcd5f7cd/src/io/ods/jenkins/dsl/jobs/devops/rhaii_on_xks.groovy).
+
 ## Source execution model
 
 The source is a pytest monorepo. Global and model-serving fixtures create
