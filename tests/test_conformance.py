@@ -685,6 +685,8 @@ class TestConformance:
 
     def test_99_cleanup(self, deployer: Deployer, tc: TestCase, no_cleanup: bool, test_mode: str):
         """Clean up deployed resources."""
+        if test_mode == "discover":
+            pytest.skip("discover mode — preserving the existing deployment")
         if no_cleanup:
             pytest.skip("--nocleanup set")
         if not tc.cleanup:
