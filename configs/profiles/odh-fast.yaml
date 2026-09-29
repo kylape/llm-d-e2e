@@ -1,0 +1,7 @@
+name: odh-fast
+description: Migrated ODH llm-d tests; see docs/odh-migration.md
+testCases:
+- odh-fast-1
+- odh-fast-2
+- odh-pd-fast-1
+- odh-pd-fast-2
