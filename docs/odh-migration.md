@@ -53,6 +53,17 @@ current upgrade coverage. The earlier consolidation baseline describes Tekton
 and rendering modules that are absent from this target checkout. The source
 code and pinned commits above determine this analysis.
 
+A follow-up review on 2026-10-05 compared the port with the draft Testing SIG
+charter and roadmap in `llm-d-inference-engineering-docs` at
+`docs/testing-sig` commit `4ac6b27`. Those plans call for each source test to be
+mapped either to portable shared assertions or a documented product-specific
+responsibility. Accordingly, the 45 “not ported” count describes this branch's
+coverage implementation; it does not imply that all 45 scenarios should move
+into this runner. The plans remain drafts. See the [repository recommendation]
+(/opt/workspace/scratchpad/llm-d-e2e-odh-migration/repository-recommendation.md)
+and [Testing SIG review]
+(/opt/workspace/scratchpad/repo-analyses/llm-d-inference-engineering-docs/testing.md).
+
 ## Existing Jenkins upgrade coverage
 
 The scratchpad's `proposals/jenkins-konflux-migration/pipeline-assessment.md`
