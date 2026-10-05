@@ -59,10 +59,8 @@ charter and roadmap in `llm-d-inference-engineering-docs` at
 mapped either to portable shared assertions or a documented product-specific
 responsibility. Accordingly, the 45 “not ported” count describes this branch's
 coverage implementation; it does not imply that all 45 scenarios should move
-into this runner. The plans remain drafts. See the [repository recommendation]
-(/opt/workspace/scratchpad/llm-d-e2e-odh-migration/repository-recommendation.md)
-and [Testing SIG review]
-(/opt/workspace/scratchpad/repo-analyses/llm-d-inference-engineering-docs/testing.md).
+into this runner. The plans remain drafts. A separate repository recommendation and source
+review are recorded in the project scratchpad.
 
 ## Existing Jenkins upgrade coverage
 
