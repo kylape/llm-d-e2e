@@ -3,6 +3,10 @@
 Date: 2026-09-29. This document describes capabilities needed to share the
 remaining ODH coverage across llm-d-e2e and product test harnesses.
 The changes described below have not been implemented on `port/odh-llmd-tests`.
+Follow-up review: 2026-10-05, aligned with the draft Testing SIG plans cited
+below. These capabilities may be implemented by shared checks and product
+harnesses; the proposal does not require moving every ODH scenario into this
+repository.
 
 The remaining tests need the runner to set up more things around a model and
 follow what happens to them over time. Examples include two users accessing
